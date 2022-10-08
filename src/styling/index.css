@@ -1,0 +1,24 @@
+@font-face {
+  font-family: 'MyFont';
+  src: local('MyFont'), url(Montserrat-Light.ttf) format('woff');
+}
+
+body {
+  font-size: large;
+  font-weight: 900;
+}
+
+nav {
+  background-color: #1369EB;
+}
+
+.header-wrapper {
+  padding: 20px;
+  background-color: rgb(232 232 232);
+}
+
+
+.header-text {
+  color: #1369EB;
+  text-align: center;
+}
