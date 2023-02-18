@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from 'axios'
 import Web3 from 'web3';
 import detectEthereumProvider from '@metamask/detect-provider';
 
-//import ABI from '../web3/abi_dev.json';
-import ABI from '../web3/abi_prod.json';
+import ABI from '../web3/abi_dev.json';
+//import ABI from '../web3/abi_prod.json';
 
 //--bootstrap
 import Navbar from 'react-bootstrap/Navbar';
@@ -13,21 +12,29 @@ import Button from 'react-bootstrap/Button';
 import Badge from "react-bootstrap/Badge";
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
-import FloatingLabel from 'react-bootstrap/FloatingLabel';
-import Form from 'react-bootstrap/Form';
-import InputGroup from 'react-bootstrap/InputGroup';
 import Modal from 'react-bootstrap/Modal';
 import Container from 'react-bootstrap/Container';
 import Jazzicon from 'react-jazzicon';
+import Form from 'react-bootstrap/Form';
 //--bootstrap
 
 
 const Studio = (props) => {
 
+    const [show, setShow] = useState(false);
+
+    const [newBoardName, setNewBoardName] = useState("");
+    const [newBoardSymbol, setNewBoardSymbol] = useState("");
+
+    const handleClose = () => setShow(false);
+    const handleShow = () => setShow(true);
+
     const [isConnected, setIsConnected] = useState(false);
     const [displayAddress, setDisplayAddress] = useState("");
     const [jazzIconInt, setJazzIconInt] = useState(0);
     const [balance, setBalance] = useState(0);
+
+    const [currentUsersBoards, setCurrentUsersBoards] = useState([]);
 
     const memberBoardFactory = useRef(null);
     const memberBoardNFT = useRef(null);
@@ -35,28 +42,116 @@ const Studio = (props) => {
     const web3 = useRef(null);
 
     const boardFactoryInterface = {
-        create: async (newBoardName) => {
-            memberBoardFactory.current.methods.create(newBoardName).send({ from: window.ethereum.selectedAddress })
+        create: async (newBoardName, symbol) => {
+            await memberBoardFactory.current.methods.create(newBoardName, symbol).send({ from: window.ethereum.selectedAddress })
         },
         isBoard: async (address) => {
-            return memberBoardFactory.current.methods.isBoard(address).call();
+            return await memberBoardFactory.current.methods.isBoard(address).call();
+        },
+        getMembersAddress: async () => {
+            return await memberBoardFactory.current.methods.membersAddress().call();
+        },
+        getProjectsAddress: async () => {
+            return await memberBoardFactory.current.methods.projectAddress().call();
         }
     };
 
-    const memberNFTInterface = {
-        mintTo: async (newMemberAddress, boardAddress) => {
-            memberBoardNFT.current.methods.mintTo(newMemberAddress, boardAddress).send({ from: window.ethereum.selectedAddress });
-        },
-        mintToFirst: async (newMemberAddress, boardAddress) => {
-            memberBoardNFT.current.methods.mintToFirst(newMemberAddress, boardAddress).send({ from: window.ethereum.selectedAddress });
-        },
-        tokenURI: async (tokenId) => {
-            memberBoardNFT.current.methods.tokenURI(tokenId).call();
-        },
-        getTokenIdGroupAddress: async (tokenId) => {
-            memberBoardNFT.current.methods.getTokenIdGroupAddress(tokenId).call();
+    function boardInterface(address) {
+        var contractInstance = new web3.current.eth.Contract(ABI.governorBoardABI, address);
+        return {
+            addGovernor: async (propId) => {
+                await contractInstance.methods.addGovernor(propId).send({ from: window.ethereum.selectedAddress });
+            },
+            addMember: async (address) => {
+                await contractInstance.methods.addMember(address).send({ from: window.ethereum.selectedAddress });
+
+            },
+            getTotalMembers: async () => {
+                return await contractInstance.methods.getTotalMembers().call();
+            },
+            memberHasDelegation: async (address) => {
+                return await contractInstance.methods.memberHasDelegation().call();
+            },
+            getGovWhoApprovedMember: async (address) => {
+                return await contractInstance.methods.getGovWhoApprovedMember().call();
+            },
+            castVote: async (propId, vote) => {
+                return await contractInstance.methods.castVote(propId, vote).send({ from: window.ethereum.selectedAddress });
+            },
+            propose: async (description, pType, address) => {
+                return await contractInstance.methods.castVote(description, pType, address).send({ from: window.ethereum.selectedAddress });
+            },
+            isGovernor: async (address) => {
+                return await contractInstance.methods.isGovernor(address).call();
+            },
+            setBoardURL: async (url) => {
+                return await contractInstance.methods.setBoardURL(url).send({ from: window.ethereum.selectedAddress });
+            },
+            getMemberVotesAddress: async () => {
+                return await contractInstance.methods.getMemberVotesAddress().call();
+            },
+            proposalVote: async (propId) => {
+                return await contractInstance.methods.proposalVote(propId).send({ from: window.ethereum.selectedAddress });
+            },
+            hasVoted: async (propId, accountAddress) => {
+                return await contractInstance.methods.hasVoted(propId, accountAddress).call();
+            },
+            hashProposal: async (pType, description, address) => {
+                return await contractInstance.methods.hashProposal(pType, description, address).call();
+            },
+            state: async (propId) => {
+                return await contractInstance.methods.state(propId).call();
+            },
+            proposalSnapshot: async (propId) => {
+                return await contractInstance.methods.proposalSnapshot(propId).call();
+            },
+            proposalDeadline: async (propId) => {
+                return await contractInstance.methods.proposalDeadline(propId).call();
+            },
+            votingDelay: async () => {
+                return await contractInstance.methods.votingDelay().call();
+            },
+            votingPeriod: async () => {
+                return await contractInstance.methods.votingDelay().call();
+            },
+            getVotes: async () => {
+                return await contractInstance.methods.getVotes().call();
+            },
+            setProposalFee: async (newFee) => {
+                await contractInstance.methods.setProposalFee(newFee).send({ from: window.ethereum.selectedAddress });
+            },
+
         }
-    };
+    }
+
+    function memberVoteInterface(address) {
+        var contractInstance = new web3.current.eth.Contract(ABI.memberVotesABI, address);
+        return {
+            name: async () => {
+                return await memberBoardNFT.current.methods.name().call();
+            },
+            symbol: async () => {
+                return await memberBoardNFT.current.methods.symbol().call();
+            },
+            mintTo: async (newMemberAddress, boardAddress) => {
+                await memberBoardNFT.current.methods.mintTo(newMemberAddress, boardAddress).send({ from: window.ethereum.selectedAddress });
+            },
+            mintToFirst: async (newMemberAddress, boardAddress) => {
+                await memberBoardNFT.current.methods.mintToFirst(newMemberAddress, boardAddress).send({ from: window.ethereum.selectedAddress });
+            },
+            tokenURI: async (tokenId) => {
+                await memberBoardNFT.current.methods.tokenURI(tokenId).call();
+            },
+            getBoards: async (address) => {
+                return await memberBoardNFT.current.methods.getBoards(address).call();
+            },
+            getBoardForToken: async (tokenId) => {
+                return await memberBoardNFT.current.methods.getBoardForToken(tokenId).call();
+            }
+        };
+    }
+
+    
 
     useEffect(() => {
         onConnect();
@@ -74,9 +169,9 @@ const Studio = (props) => {
         if (provider && window.ethereum) {
             web3.current = new Web3(window.ethereum);
 
-            memberBoardFactory.current = new web3.current.eth.Contract(ABI.boardFactoryABI, ABI.boardFactoryAddress);
-            var memberNFTAdress = await memberBoardFactory.current.methods.memberNFTAddress().call();
-            memberBoardNFT.current = new web3.current.eth.Contract(ABI.memberNFTABI, memberNFTAdress);
+            memberBoardFactory.current = new web3.current.eth.Contract(ABI.governorBoardFactoryABI, ABI.governorBoardFactoryAddress);
+            var memberNFTAddress = await boardFactoryInterface.getMembersAddress();
+            memberBoardNFT.current = new web3.current.eth.Contract(ABI.membersABI, memberNFTAddress);
 
             if (provider.selectedAddress) {
                 setDisplayAddress(getShortAccountAddress(provider.selectedAddress));
@@ -87,6 +182,9 @@ const Studio = (props) => {
             }
             window.ethereum.on('accountsChanged', onConnect);
             window.ethereum.on('connect', onConnect);
+
+            await populateCurrentUserBoardList();
+
         } else {
             web3.current = new Web3();
         }
@@ -100,13 +198,43 @@ const Studio = (props) => {
         }
     }
 
+    async function populateCurrentUserBoardList() {
+        var boards = await memberNFTInterface.getBoards(window.ethereum.selectedAddress);
+        var result = [];
+        var votesAddress = await boardInterface.getMemberVotesAddress();
+        var memberVotes = memberVoteInterface(votesAddress);
+        for (var i = 0; i < boards.length; i++) {
+            var boardAddress = await memberNFTInterface.getBoardForToken(boards[i]);
+            var
+                result.push({ tokenId: boards[i], boardAddress });
+        }
+
+        setCurrentUsersBoards(result);
+
+    }
+
     const connectClick = () => {
         window.ethereum.request({ method: 'eth_requestAccounts' });
     };
 
     const createBoardMainClick = () => {
-
+        handleShow(true);
     };
+
+    const onBoardCreateClick = async () => {
+        await boardFactoryInterface.create(newBoardName, newBoardSymbol);
+        handleShow(false);
+    };
+
+    const getBoards = currentUsersBoards.map((model, index) => {
+        return (
+            <div key={index}>
+                {model.boardAddress}
+                {model.name}
+            </div >
+        )
+    });
+
 
     return (
         <div>
@@ -150,19 +278,31 @@ const Studio = (props) => {
                 <br />
                 <Row>
                     <Col>
-
+                        {getBoards}
                     </Col>
                 </Row>
                 <br />
                 <br />
 
             </Container>
-            <Modal>
+            <Modal show={show} onHide={handleClose}>
                 <Modal.Header>
                     Create Board
                 </Modal.Header>
                 <Modal.Body>
-
+                    <Form>
+                        <Form.Group className="mb-3" >
+                            <Form.Label>Name</Form.Label>
+                            <Form.Control value={newBoardName} onChange={(e) => { setNewBoardName(e.target.value) }} type="text" />
+                        </Form.Group>
+                        <Form.Group className="mb-3" >
+                            <Form.Label>Symbol</Form.Label>
+                            <Form.Control value={newBoardSymbol} onChange={(e) => { setNewBoardSymbol(e.target.value) }} type="text" />
+                        </Form.Group>
+                        <Button onClick={onBoardCreateClick}>
+                            Create
+                        </Button>
+                    </Form>
                 </Modal.Body>
                 <Modal.Footer>
 
