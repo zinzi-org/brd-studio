@@ -22,3 +22,19 @@ nav {
   color: #1369EB;
   text-align: center;
 }
+
+.board-row-item {
+  font-weight: 500;
+  font-size: 18px;
+}
+
+.item-center {
+  text-align: center;
+}
+
+.boarder-member {
+  border: 1px solid #1369EB;
+  border-radius: 5px;
+  padding: 10px;
+  margin: 10px;
+}

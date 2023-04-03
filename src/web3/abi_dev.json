@@ -112,7 +112,7 @@
             "signature": "0x3cf96af1"
         }
     ],
-    "governorBoardFactoryAddress": "0x6991e673292B4E62Efa1f88a87635107E43ea608",
+    "governorBoardFactoryAddress": "0xbE6f6a014406e4e0C009F4B49e357d9aCED291F6",
     "governorBoardABI": [
         {
             "inputs": [
@@ -466,6 +466,19 @@
             "type": "function"
         },
         {
+            "inputs": [],
+            "name": "name",
+            "outputs": [
+                {
+                    "internalType": "string",
+                    "name": "",
+                    "type": "string"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
             "inputs": [
                 {
                     "internalType": "uint256",
@@ -595,6 +608,19 @@
                     "internalType": "enum GovernorBoard.ProposalState",
                     "name": "",
                     "type": "uint8"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "symbol",
+            "outputs": [
+                {
+                    "internalType": "string",
+                    "name": "",
+                    "type": "string"
                 }
             ],
             "stateMutability": "view",
@@ -1372,6 +1398,25 @@
             "inputs": [
                 {
                     "internalType": "address",
+                    "name": "who",
+                    "type": "address"
+                }
+            ],
+            "name": "getTokenId",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "address",
                     "name": "tokeOwner",
                     "type": "address"
                 },
@@ -1688,6 +1733,12 @@
                     "internalType": "uint256",
                     "name": "memberTokenId",
                     "type": "uint256"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "proposalId",
+                    "type": "uint256"
                 }
             ],
             "name": "Proposal",
@@ -1763,7 +1814,18 @@
             "type": "function"
         },
         {
-            "inputs": [],
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "projectTokenId",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "proposalIndex",
+                    "type": "uint256"
+                }
+            ],
             "name": "approveProposal",
             "outputs": [],
             "stateMutability": "nonpayable",
@@ -1786,13 +1848,6 @@
                 }
             ],
             "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "cancelProject",
-            "outputs": [],
-            "stateMutability": "nonpayable",
             "type": "function"
         },
         {
@@ -1865,6 +1920,11 @@
                     "internalType": "uint256",
                     "name": "amountNeeded",
                     "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "timeNeeded",
+                    "type": "uint256"
                 }
             ],
             "name": "createProposal",
@@ -1898,12 +1958,12 @@
                     "type": "string"
                 },
                 {
-                    "internalType": "enum Project.Workflow",
+                    "internalType": "enum IProject.Workflow",
                     "name": "flow",
                     "type": "uint8"
                 },
                 {
-                    "internalType": "enum Project.Funding",
+                    "internalType": "enum IProject.Funding",
                     "name": "funding",
                     "type": "uint8"
                 }
@@ -1923,17 +1983,17 @@
             "inputs": [
                 {
                     "internalType": "string",
-                    "name": "projectSummary",
+                    "name": "summary",
                     "type": "string"
                 },
                 {
                     "internalType": "uint256",
-                    "name": "projectTokenId",
+                    "name": "projectId",
                     "type": "uint256"
                 },
                 {
                     "internalType": "uint256",
-                    "name": "memberTokenId",
+                    "name": "memberId",
                     "type": "uint256"
                 }
             ],
@@ -1973,11 +2033,22 @@
                     "internalType": "uint256",
                     "name": "projectTokenId",
                     "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "proposalIndex",
+                    "type": "uint256"
                 }
             ],
             "name": "getVotes",
-            "outputs": [],
-            "stateMutability": "nonpayable",
+            "outputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
             "type": "function"
         },
         {
@@ -2041,12 +2112,12 @@
                     "type": "string"
                 },
                 {
-                    "internalType": "enum Project.Workflow",
+                    "internalType": "enum IProject.Workflow",
                     "name": "flow",
                     "type": "uint8"
                 },
                 {
-                    "internalType": "enum Project.Funding",
+                    "internalType": "enum IProject.Funding",
                     "name": "funding",
                     "type": "uint8"
                 },
@@ -2104,7 +2175,7 @@
             "name": "projectState",
             "outputs": [
                 {
-                    "internalType": "enum Project.ProjectState",
+                    "internalType": "enum IProject.ProjectState",
                     "name": "",
                     "type": "uint8"
                 }
@@ -2328,17 +2399,50 @@
                     "type": "string"
                 },
                 {
-                    "internalType": "enum Project.Workflow",
+                    "internalType": "enum IProject.Workflow",
                     "name": "flow",
                     "type": "uint8"
                 },
                 {
-                    "internalType": "enum Project.Funding",
+                    "internalType": "enum IProject.Funding",
                     "name": "funding",
                     "type": "uint8"
                 }
             ],
             "name": "updateProjectHash",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        },
+        {
+            "inputs": [
+                {
+                    "internalType": "uint256",
+                    "name": "projectTokenId",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "proposalIndex",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "string",
+                    "name": "summary",
+                    "type": "string"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "amountNeeded",
+                    "type": "uint256"
+                },
+                {
+                    "internalType": "uint256",
+                    "name": "timeNeeded",
+                    "type": "uint256"
+                }
+            ],
+            "name": "updateProposal",
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"

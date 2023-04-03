@@ -22,6 +22,7 @@ import Form from 'react-bootstrap/Form';
 const Studio = (props) => {
 
     const [show, setShow] = useState(false);
+    const [showExplorer, setShowExplorer] = useState(true);
 
     const [newBoardName, setNewBoardName] = useState("");
     const [newBoardSymbol, setNewBoardSymbol] = useState("");
@@ -35,6 +36,8 @@ const Studio = (props) => {
     const [balance, setBalance] = useState(0);
 
     const [currentUsersBoards, setCurrentUsersBoards] = useState([]);
+    const [allBoards, setAllBoards] = useState([]);
+
 
     const memberBoardFactory = useRef(null);
     const memberBoardNFT = useRef(null);
@@ -53,27 +56,35 @@ const Studio = (props) => {
         },
         getProjectsAddress: async () => {
             return await memberBoardFactory.current.methods.projectAddress().call();
-        }
+        },
+        getAllBoards: async () => {
+            return await memberBoardFactory.current.getPastEvents('BoardCreated', {
+                fromBlock: 0,
+                toBlock: 'latest'
+            });
+        },
     };
 
     function boardInterface(address) {
         var contractInstance = new web3.current.eth.Contract(ABI.governorBoardABI, address);
         return {
+            name: async () => {
+                return await contractInstance.methods.name().call();
+            },
+            symbol: async () => {
+                return await contractInstance.methods.symbol().call();
+            },
             addGovernor: async (propId) => {
                 await contractInstance.methods.addGovernor(propId).send({ from: window.ethereum.selectedAddress });
             },
             addMember: async (address) => {
                 await contractInstance.methods.addMember(address).send({ from: window.ethereum.selectedAddress });
-
             },
             getTotalMembers: async () => {
                 return await contractInstance.methods.getTotalMembers().call();
             },
             memberHasDelegation: async (address) => {
                 return await contractInstance.methods.memberHasDelegation().call();
-            },
-            getGovWhoApprovedMember: async (address) => {
-                return await contractInstance.methods.getGovWhoApprovedMember().call();
             },
             castVote: async (propId, vote) => {
                 return await contractInstance.methods.castVote(propId, vote).send({ from: window.ethereum.selectedAddress });
@@ -83,9 +94,6 @@ const Studio = (props) => {
             },
             isGovernor: async (address) => {
                 return await contractInstance.methods.isGovernor(address).call();
-            },
-            setBoardURL: async (url) => {
-                return await contractInstance.methods.setBoardURL(url).send({ from: window.ethereum.selectedAddress });
             },
             getMemberVotesAddress: async () => {
                 return await contractInstance.methods.getMemberVotesAddress().call();
@@ -120,38 +128,53 @@ const Studio = (props) => {
             setProposalFee: async (newFee) => {
                 await contractInstance.methods.setProposalFee(newFee).send({ from: window.ethereum.selectedAddress });
             },
-
+            getProposals: async () => {
+                return await memberBoardFactory.current.getPastEvents('Proposal', {
+                    fromBlock: 0,
+                    toBlock: 'latest'
+                });
+            },
+            getMemberApprovals: async () => {
+                return await memberBoardFactory.current.getPastEvents('ApproveMember', {
+                    fromBlock: 0,
+                    toBlock: 'latest'
+                });
+            },
+            getGovernorApprovals: async () => {
+                return await memberBoardFactory.current.getPastEvents('AddGovernor', {
+                    fromBlock: 0,
+                    toBlock: 'latest'
+                });
+            }
         }
     }
 
-    function memberVoteInterface(address) {
-        var contractInstance = new web3.current.eth.Contract(ABI.memberVotesABI, address);
-        return {
-            name: async () => {
-                return await memberBoardNFT.current.methods.name().call();
-            },
-            symbol: async () => {
-                return await memberBoardNFT.current.methods.symbol().call();
-            },
-            mintTo: async (newMemberAddress, boardAddress) => {
-                await memberBoardNFT.current.methods.mintTo(newMemberAddress, boardAddress).send({ from: window.ethereum.selectedAddress });
-            },
-            mintToFirst: async (newMemberAddress, boardAddress) => {
-                await memberBoardNFT.current.methods.mintToFirst(newMemberAddress, boardAddress).send({ from: window.ethereum.selectedAddress });
-            },
-            tokenURI: async (tokenId) => {
-                await memberBoardNFT.current.methods.tokenURI(tokenId).call();
-            },
-            getBoards: async (address) => {
-                return await memberBoardNFT.current.methods.getBoards(address).call();
-            },
-            getBoardForToken: async (tokenId) => {
-                return await memberBoardNFT.current.methods.getBoardForToken(tokenId).call();
-            }
-        };
-    }
+    const memberNFTInterface = {
+        name: async () => {
+            return await memberBoardNFT.current.methods.name().call();
+        },
+        symbol: async () => {
+            return await memberBoardNFT.current.methods.symbol().call();
+        },
+        mintTo: async (newMemberAddress, boardAddress) => {
+            await memberBoardNFT.current.methods.mintTo(newMemberAddress, boardAddress)
+                .send({ from: window.ethereum.selectedAddress });
+        },
+        mintToFirst: async (newMemberAddress, boardAddress) => {
+            await memberBoardNFT.current.methods.mintToFirst(newMemberAddress, boardAddress)
+                .send({ from: window.ethereum.selectedAddress });
+        },
+        tokenURI: async (tokenId) => {
+            await memberBoardNFT.current.methods.tokenURI(tokenId).call();
+        },
+        getBoards: async (address) => {
+            return await memberBoardNFT.current.methods.getBoards(address).call();
+        },
+        getBoardForToken: async (tokenId) => {
+            return await memberBoardNFT.current.methods.getBoardForToken(tokenId).call();
+        }
+    };
 
-    
 
     useEffect(() => {
         onConnect();
@@ -172,18 +195,21 @@ const Studio = (props) => {
             memberBoardFactory.current = new web3.current.eth.Contract(ABI.governorBoardFactoryABI, ABI.governorBoardFactoryAddress);
             var memberNFTAddress = await boardFactoryInterface.getMembersAddress();
             memberBoardNFT.current = new web3.current.eth.Contract(ABI.membersABI, memberNFTAddress);
-
+            var usersBoards = [];
             if (provider.selectedAddress) {
                 setDisplayAddress(getShortAccountAddress(provider.selectedAddress));
                 setIsConnected(true);
                 const balance = await web3.current.eth.getBalance(window.ethereum.selectedAddress);
                 setBalance(parseFloat(web3.current.utils.fromWei(balance)).toFixed(3));
                 setJazzIconInt(parseInt(window.ethereum.selectedAddress.slice(2, 10), 16));
+                usersBoards = await populateCurrentUserBoardList();
             }
+
             window.ethereum.on('accountsChanged', onConnect);
             window.ethereum.on('connect', onConnect);
 
-            await populateCurrentUserBoardList();
+
+            await popualateAllBoards(usersBoards);
 
         } else {
             web3.current = new Web3();
@@ -201,36 +227,154 @@ const Studio = (props) => {
     async function populateCurrentUserBoardList() {
         var boards = await memberNFTInterface.getBoards(window.ethereum.selectedAddress);
         var result = [];
-        var votesAddress = await boardInterface.getMemberVotesAddress();
-        var memberVotes = memberVoteInterface(votesAddress);
         for (var i = 0; i < boards.length; i++) {
-            var boardAddress = await memberNFTInterface.getBoardForToken(boards[i]);
-            var
-                result.push({ tokenId: boards[i], boardAddress });
+            var boardToken = boards[i];
+            var boardAddress = await memberNFTInterface.getBoardForToken(boardToken);
+            var board = new boardInterface(boardAddress);
+            var boardName = await board.name();
+            var boardSymbol = await board.symbol();
+            var totalMembers = await board.getTotalMembers();
+            var isGovernor = await board.isGovernor(window.ethereum.selectedAddress);
+
+            result.push({
+                boardAddress,
+                boardName,
+                boardSymbol,
+                boardToken,
+                totalMembers,
+                isGovernor
+            });
+        }
+        setCurrentUsersBoards(result);
+        return result;
+    }
+
+    async function popualateAllBoards(usersBoards) {
+        var boards = await boardFactoryInterface.getAllBoards();
+        var result = [];
+        for (var i = 0; i < boards.length; i++) {
+            var address = boards[i].returnValues[0];
+            var board = new boardInterface(address);
+            var boardName = await board.name();
+            var boardSymbol = await board.symbol();
+            var totalMembers = await board.getTotalMembers();
+            var isMember = false;
+            var isGovernor = false;
+            if (window.ethereum.selectedAddress) {
+                isMember = usersBoards.filter(x => x.boardAddress === address).length > 0;
+                isGovernor = await board.isGovernor(window.ethereum.selectedAddress);
+            }
+            result.push({ boardAddress: address, name: boardName, symbol: boardSymbol, totalMembers, isMember, isGovernor });
         }
 
-        setCurrentUsersBoards(result);
-
+        setAllBoards(result);
     }
 
     const connectClick = () => {
         window.ethereum.request({ method: 'eth_requestAccounts' });
     };
 
-    const createBoardMainClick = () => {
-        handleShow(true);
+    const showExplorerClick = () => {
+        setShowExplorer(true);
     };
 
+    const showMyBoardsClick = () => {
+        setShowExplorer(false);
+    };
+
+    const onJoinBoardClick = async () => {
+
+    };
+
+
+    //Create Boards ---
+
+    //open/close modal
+    const createBoardMainClick = () => {
+        handleShow();
+    };
+
+    //on board create 
     const onBoardCreateClick = async () => {
         await boardFactoryInterface.create(newBoardName, newBoardSymbol);
-        handleShow(false);
+        await populateCurrentUserBoardList();
+        await popualateAllBoards();
+        handleClose();
     };
 
-    const getBoards = currentUsersBoards.map((model, index) => {
+    const getCurrentUserBoards = currentUsersBoards.map((model, index) => {
+        return (
+            <div key={index} className="boarder-member">
+                <Row>
+                    <Col xs={3} className="item-center">
+                        Name
+                    </Col>
+                    <Col xs={2} className="item-center">
+                        Total Members
+                    </Col>
+                    <Col xs={5} className="item-center">
+                        Address
+                    </Col>
+                </Row>
+                <hr />
+                <Row className="board-row-item">
+                    <Col xs={3} className="item-center">
+                        {model.boardName}
+                    </Col>
+                    <Col xs={2} className="item-center">
+                        {model.totalMembers}
+                    </Col>
+                    <Col xs={5}  className="item-center">
+                        {model.boardAddress}
+                    </Col>
+                </Row>
+                <br />
+                <Row>
+                    <Col xs={3} className="item-center">
+                        Member Type
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        Voting Power
+                    </Col>
+                </Row>
+                <hr />
+                <Row>
+                    <Col>
+
+                    </Col>
+                </Row>
+                <br />
+                <Row>
+                    <Col>
+                        <h3>Proposals</h3>
+                    </Col>
+                </Row>
+            </div >
+        )
+    });
+
+    const getAllBoards = allBoards.map((model, index) => {
         return (
             <div key={index}>
-                {model.boardAddress}
-                {model.name}
+                <Row className="board-row-item">
+                    <Col xs={3}>
+                        {model.name}
+                    </Col>
+                    <Col xs={2} className="item-center">
+                        {model.totalMembers}
+                    </Col>
+                    <Col xs={5}>
+                        {model.boardAddress}
+                    </Col>
+                    <Col>
+                        <div hidden={model.isMember}>
+                            <Button variant="warning" onClick={() => onJoinBoardClick(model.boardAddress)}>Apply</Button>
+                        </div>
+                        <div hidden={!model.isMember}>
+                            <span>Member</span>
+                        </div>
+                    </Col>
+                </Row>
             </div >
         )
     });
@@ -241,8 +385,14 @@ const Studio = (props) => {
             <Container>
                 <Navbar variant="dark" expand="lg">
                     <Container>
-                        <Nav>
+                        <Nav defaultActiveKey="#explorer">
                             <Navbar.Brand>Board Studio</Navbar.Brand>
+                            <Nav.Link href="#explorer" onClick={showExplorerClick}>
+                                Explorer
+                            </Nav.Link>
+                            <Nav.Link href="#myboard" onClick={showMyBoardsClick}>
+                                My Boards
+                            </Nav.Link>
                         </Nav>
                         <Nav>
                             <Nav.Link>
@@ -264,26 +414,55 @@ const Studio = (props) => {
                 </Navbar>
                 <br />
                 <br />
-                <Row className="header-wrapper" >
-                    <Col className="header-text">
-                        <div style={{ textAlign: "center" }}>
-                            Member Boards
-                        </div>
-                    </Col>
-                    <Col md="1">
-                        <Button variant="danger" onClick={createBoardMainClick}>Create</Button>
-                    </Col>
-                </Row>
+                <div hidden={!showExplorer}>
+                    <Row className="header-wrapper" >
+                        <Col className="header-text">
+                            <div style={{ textAlign: "center" }}>
+                                Board Explorer
+                            </div>
+                        </Col>
+                        <Col md="1">
+                            <Button variant="danger" onClick={createBoardMainClick}>Create</Button>
+                        </Col>
+                    </Row>
+                    <br />
+                    <br />
+                    <Row>
+                        <Col xs={3}>
+                            <b>Name</b>
+                        </Col>
+                        <Col xs={2} className="item-center">
+                            <b>Member Count</b>
+                        </Col>
+                        <Col xs={4}>
+                            <b>Address</b>
+                        </Col>
+                    </Row>
+                    <hr />
+                    <Row>
+                        <Col>
+                            {getAllBoards}
+                        </Col>
+                    </Row>
+                </div>
+                <div hidden={showExplorer}>
+                    <Row className="header-wrapper" >
+                        <Col className="header-text">
+                            <div style={{ textAlign: "center" }}>
+                                My Boards
+                            </div>
+                        </Col>
+                    </Row>
+                    <br />
+                    <br />
+                    <Row>
+                        <Col>
+                            {getCurrentUserBoards}
+                        </Col>
+                    </Row>
+                </div>
                 <br />
                 <br />
-                <Row>
-                    <Col>
-                        {getBoards}
-                    </Col>
-                </Row>
-                <br />
-                <br />
-
             </Container>
             <Modal show={show} onHide={handleClose}>
                 <Modal.Header>
