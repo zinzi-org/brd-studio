@@ -112,7 +112,7 @@
             "signature": "0x3cf96af1"
         }
     ],
-    "governorBoardFactoryAddress": "0xbE6f6a014406e4e0C009F4B49e357d9aCED291F6",
+    "governorBoardFactoryAddress": "0xb164fE378019d0C73c4367fe9Ea7113dA18287dC",
     "governorBoardABI": [
         {
             "inputs": [
@@ -145,9 +145,59 @@
             "inputs": [
                 {
                     "indexed": false,
+                    "internalType": "address",
+                    "name": "governor",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
                     "internalType": "uint256",
                     "name": "proposalId",
                     "type": "uint256"
+                }
+            ],
+            "name": "AddGovernor",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": false,
+                    "internalType": "address",
+                    "name": "member",
+                    "type": "address"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "address",
+                    "name": "governor",
+                    "type": "address"
+                }
+            ],
+            "name": "ApproveMember",
+            "type": "event"
+        },
+        {
+            "anonymous": false,
+            "inputs": [
+                {
+                    "indexed": false,
+                    "internalType": "uint256",
+                    "name": "proposalId",
+                    "type": "uint256"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "string",
+                    "name": "description",
+                    "type": "string"
+                },
+                {
+                    "indexed": false,
+                    "internalType": "enum GovernorBoard.PropType",
+                    "name": "pType",
+                    "type": "uint8"
                 }
             ],
             "name": "Proposal",
@@ -186,51 +236,6 @@
                     "internalType": "uint256",
                     "name": "",
                     "type": "uint256"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "_memberMetaURL",
-            "outputs": [
-                {
-                    "internalType": "string",
-                    "name": "",
-                    "type": "string"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "",
-                    "type": "address"
-                }
-            ],
-            "name": "_memberToGovWhoApproved",
-            "outputs": [
-                {
-                    "internalType": "address",
-                    "name": "",
-                    "type": "address"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "_metaURL",
-            "outputs": [
-                {
-                    "internalType": "string",
-                    "name": "",
-                    "type": "string"
                 }
             ],
             "stateMutability": "view",
@@ -287,25 +292,6 @@
             "type": "function"
         },
         {
-            "inputs": [
-                {
-                    "internalType": "address",
-                    "name": "who",
-                    "type": "address"
-                }
-            ],
-            "name": "getGovWhoApprovedMember",
-            "outputs": [
-                {
-                    "internalType": "address",
-                    "name": "",
-                    "type": "address"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
             "inputs": [],
             "name": "getMemberVotesAddress",
             "outputs": [
@@ -313,25 +299,6 @@
                     "internalType": "address",
                     "name": "",
                     "type": "address"
-                }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "tokenId",
-                    "type": "uint256"
-                }
-            ],
-            "name": "getTokenURI",
-            "outputs": [
-                {
-                    "internalType": "string",
-                    "name": "",
-                    "type": "string"
                 }
             ],
             "stateMutability": "view",
@@ -564,32 +531,6 @@
                 }
             ],
             "name": "propose",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "string",
-                    "name": "url",
-                    "type": "string"
-                }
-            ],
-            "name": "setBoardURL",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {
-                    "internalType": "uint256",
-                    "name": "newFee",
-                    "type": "uint256"
-                }
-            ],
-            "name": "setProposalFee",
             "outputs": [],
             "stateMutability": "nonpayable",
             "type": "function"
@@ -1295,6 +1236,19 @@
                     "internalType": "uint256",
                     "name": "",
                     "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        },
+        {
+            "inputs": [],
+            "name": "_memberMetaURL",
+            "outputs": [
+                {
+                    "internalType": "string",
+                    "name": "",
+                    "type": "string"
                 }
             ],
             "stateMutability": "view",

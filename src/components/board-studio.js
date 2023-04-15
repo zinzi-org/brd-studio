@@ -129,10 +129,16 @@ const Studio = (props) => {
                 await contractInstance.methods.setProposalFee(newFee).send({ from: window.ethereum.selectedAddress });
             },
             getProposals: async () => {
-                return await memberBoardFactory.current.getPastEvents('Proposal', {
-                    fromBlock: 0,
-                    toBlock: 'latest'
-                });
+                try {
+                    return await memberBoardFactory.current.getPastEvents('Proposal', {
+                        fromBlock: 0,
+                        toBlock: 'latest'
+                    });
+                } catch (e) {
+                    console.log(e);
+                    return [];
+                }
+
             },
             getMemberApprovals: async () => {
                 return await memberBoardFactory.current.getPastEvents('ApproveMember', {
@@ -174,6 +180,65 @@ const Studio = (props) => {
             return await memberBoardNFT.current.methods.getBoardForToken(tokenId).call();
         }
     };
+
+    function memberVoteContractInstance(address) {
+        const memberVoteContract = new web3.current.eth.Contract(ABI.memberVotesABI, address);
+
+        return {
+            name: async function () {
+                return await memberVoteContract.methods.name().call();
+            },
+            symbol: async function () {
+                return await memberVoteContract.methods.symbol().call();
+            },
+            decimals: async function () {
+                return await memberVoteContract.methods.decimals().call();
+            },
+            totalSupply: async function () {
+                return await memberVoteContract.methods.totalSupply().call();
+            },
+            balanceOf: async function (account) {
+                return await memberVoteContract.methods.balanceOf(account).call();
+            },
+            checkpoints: async function (account, pos) {
+                return await memberVoteContract.methods.checkpoints(account, pos).call();
+            },
+            numCheckpoints: async function (account) {
+                return await memberVoteContract.methods.numCheckpoints(account).call();
+            },
+            delegateSafeCheck: async function (account) {
+                return await memberVoteContract.methods.delegateSafeCheck(account).call();
+            },
+            getVotes: async function (account) {
+                return await memberVoteContract.methods.getVotes(account).call();
+            },
+            getPastVotes: async function (account, blockNumber) {
+                return await memberVoteContract.methods
+                    .getPastVotes(account, blockNumber)
+                    .call();
+            },
+            getPastTotalSupply: async function (blockNumber) {
+                return await memberVoteContract.methods
+                    .getPastTotalSupply(blockNumber)
+                    .call();
+            },
+            delegate: async function (delegatee, from, privateKey) {
+                const data = memberVoteContract.methods.delegate(delegatee).encodeABI();
+                const gas = await memberVoteContract.methods.delegate(delegatee).estimateGas({ from });
+                const nonce = await web3.eth.getTransactionCount(from);
+                const tx = {
+                    from: from,
+                    to: address,
+                    gas: gas,
+                    nonce: nonce,
+                    data: data,
+                };
+                const signedTx = await web3.eth.accounts.signTransaction(tx, privateKey);
+                return await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+            },
+        };
+    }
+
 
 
     useEffect(() => {
@@ -235,6 +300,31 @@ const Studio = (props) => {
             var boardSymbol = await board.symbol();
             var totalMembers = await board.getTotalMembers();
             var isGovernor = await board.isGovernor(window.ethereum.selectedAddress);
+            var memberVotesAddress = await board.getMemberVotesAddress();
+            var memberVotesInstance = new memberVoteContractInstance(memberVotesAddress);
+            var votingPower = await memberVotesInstance.getVotes(window.ethereum.selectedAddress);
+            var proposals = await board.getProposals();
+
+            var propsItems = [];
+
+            for (var x = 0; x < proposals.length; x++) {
+                var proposal = proposals[x];
+                var proposalId = proposal[0];
+                var description = proposal[1];
+                var pType = proposal[2];
+                var proposalVotes = await board.getProposalVotes(proposalId);
+                var propState = await board.getProposalState(proposalId);
+
+                propsItems.push({
+                    proposalId,
+                    description,
+                    pType,
+                    proposalVotes,
+                    propState
+                });
+
+            }
+
 
             result.push({
                 boardAddress,
@@ -242,7 +332,9 @@ const Studio = (props) => {
                 boardSymbol,
                 boardToken,
                 totalMembers,
-                isGovernor
+                isGovernor,
+                votingPower,
+                propsItems
             });
         }
         setCurrentUsersBoards(result);
@@ -303,6 +395,27 @@ const Studio = (props) => {
     };
 
     const getCurrentUserBoards = currentUsersBoards.map((model, index) => {
+        const proposalMapping = model.propsItems.map((prop, index) => {
+            return (
+                <Row key={index} className="board-row-item">
+                    <Col xs={3} className="item-center">
+                        {prop.proposalId}
+                    </Col>
+                    <Col xs={2} className="item-center">
+                        {prop.description}
+                    </Col>
+                    <Col xs={2} className="item-center">
+                        {prop.pType}
+                    </Col>
+                    <Col xs={2} className="item-center">
+                        {prop.proposalVotes}
+                    </Col>
+                    <Col xs={2} className="item-center">
+                        {prop.propState}
+                    </Col>
+                </Row>
+            );
+        });
         return (
             <div key={index} className="boarder-member">
                 <Row>
@@ -324,7 +437,7 @@ const Studio = (props) => {
                     <Col xs={2} className="item-center">
                         {model.totalMembers}
                     </Col>
-                    <Col xs={5}  className="item-center">
+                    <Col xs={5} className="item-center">
                         {model.boardAddress}
                     </Col>
                 </Row>
@@ -338,17 +451,21 @@ const Studio = (props) => {
                     </Col>
                 </Row>
                 <hr />
-                <Row>
-                    <Col>
-
+                <Row className="board-row-item">
+                    <Col xs={3} className="item-center">
+                        {model.isGovernor ? "Governor" : "Member"}
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        {model.votingPower}
                     </Col>
                 </Row>
                 <br />
                 <Row>
-                    <Col>
+                    <Col className="item-center">
                         <h3>Proposals</h3>
                     </Col>
                 </Row>
+                {proposalMapping}
             </div >
         )
     });
@@ -493,5 +610,3 @@ const Studio = (props) => {
 
 
 export default Studio;
-
-
