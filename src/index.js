@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 
 import { Routes, Route , BrowserRouter} from "react-router-dom";
 
-import Layout from './components/layout/layout';
+import Layout from './components/layout';
 import Browser from './pages/browser';
 import Board from './pages/board';
 

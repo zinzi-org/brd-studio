@@ -3,10 +3,10 @@
   src: local('MyFont'), url(Montserrat-Light.ttf) format('woff');
 }
 
-body {
-  font-size: large;
-  font-weight: 900;
+a:link {
+  text-decoration: none;
 }
+
 
 nav {
   background-color: #1369EB;
@@ -21,6 +21,9 @@ nav {
 .header-text {
   color: #1369EB;
   text-align: center;
+  font-size: large;
+  font-weight: 900;
+  text-align: "center";
 }
 
 .board-row-item {

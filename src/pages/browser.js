@@ -8,6 +8,7 @@ import Col from 'react-bootstrap/Col';
 import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
 import Table from 'react-bootstrap/Table';
+import Spinner from 'react-bootstrap/Spinner';
 //--bootstrap
 
 import BoardFactoryInterface from "../web3/interfaces/boardFactory";
@@ -30,6 +31,8 @@ const Browser = (props) => {
 
     const boardFactoryInterface = useRef(null);
     const membersInterface = useRef(null);
+
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         onConnect();
@@ -63,29 +66,7 @@ const Browser = (props) => {
             var memberVotesAddress = await board.getMemberVotesAddress();
             let memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
             var votingPower = await memberVotesInterface.getVotes(window.ethereum.selectedAddress);
-            var proposals = await board.getProposals();
-
-            var propsItems = [];
-
-            for (var x = 0; x < proposals.length; x++) {
-                var proposal = proposals[x];
-                var proposalId = proposal[0];
-                var description = proposal[1];
-                var pType = proposal[2];
-                var proposalVotes = await board.getProposalVotes(proposalId);
-                var propState = await board.getProposalState(proposalId);
-
-                propsItems.push({
-                    proposalId,
-                    description,
-                    pType,
-                    proposalVotes,
-                    propState
-                });
-
-            }
-
-
+          
             result.push({
                 boardAddress,
                 boardName,
@@ -94,7 +75,6 @@ const Browser = (props) => {
                 totalMembers,
                 isGovernor,
                 votingPower,
-                propsItems
             });
         }
         setCurrentUsersBoards(result);
@@ -112,7 +92,7 @@ const Browser = (props) => {
             var totalMembers = await board.getTotalMembers();
             var isMember = false;
             var isGovernor = false;
-            if (window.ethereum.selectedAddress) {
+            if (window.ethereum.selectedAddress && usersBoards.length > 0) {
                 isMember = usersBoards.filter(x => x.boardAddress === address).length > 0;
                 isGovernor = await board.isGovernor(window.ethereum.selectedAddress);
             }
@@ -130,10 +110,12 @@ const Browser = (props) => {
 
     //on board create 
     const onBoardCreateClick = async () => {
+        setIsLoading(true);
         await boardFactoryInterface.current.create(newBoardName, newBoardSymbol);
         await populateCurrentUserBoardList();
-        await popualateAllBoards();
+        await onConnect();
         handleCreateClose();
+        setIsLoading(false);
     };
 
     function getShortAccountAddress(address) {
@@ -152,7 +134,7 @@ const Browser = (props) => {
         return (
             <tr key={index}>
                 <td>
-                    <Link to={"board/" + model.boardAddress}>{model.boardName}</Link>
+                    <b><Link to={"board/" + model.boardAddress}>{model.boardName}</Link></b>
                 </td>
                 <td>
                     {model.totalMembers}
@@ -175,7 +157,7 @@ const Browser = (props) => {
 
             <tr key={ImageBitmapRenderingContext}>
                 <td>
-                    <Link to={"board/" + model.boardAddress}>{model.name}</Link>
+                    <b><Link to={"board/" + model.boardAddress}>{model.name}</Link></b>
                 </td>
                 <td>
                     {model.totalMembers}
@@ -194,32 +176,30 @@ const Browser = (props) => {
         <div>
             <Row className="header-wrapper" >
                 <Col className="header-text">
-                    <div style={{ textAlign: "center" }}>
-                        My Boards
-                    </div>
+                    My Boards
                 </Col>
             </Row>
             <Row>
                 <Col>
 
-                    <Table>
+                    <Table striped bordered hover>
                         <thead>
                             <tr>
-                                <td>
+                                <th>
                                     Name
-                                </td>
-                                <td>
+                                </th>
+                                <th>
                                     Total Members
-                                </td>
-                                <td>
+                                </th>
+                                <th>
                                     Address
-                                </td>
-                                <td>
+                                </th>
+                                <th>
                                     Member Type
-                                </td>
-                                <td>
+                                </th>
+                                <th>
                                     Voting Power
-                                </td>
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -236,29 +216,27 @@ const Browser = (props) => {
 
             <Row className="header-wrapper" >
                 <Col className="header-text">
-                    <div style={{ textAlign: "center" }}>
-                        Board Explorer
-                    </div>
+                    Board Explorer
                 </Col>
-                <Col md="1">
-                    <Button variant="danger" onClick={createBoardMainClick}>Create</Button>
+                <Col md="2">
+                    <Button variant="danger" onClick={createBoardMainClick}>Create Board</Button>
                 </Col>
             </Row>
 
             <br />
 
-            <Table>
+            <Table striped bordered hover>
                 <thead>
                     <tr>
-                        <td>
+                        <th>
                             <b>Name</b>
-                        </td>
-                        <td>
+                        </th>
+                        <th>
                             <b>Member Count</b>
-                        </td>
-                        <td>
+                        </th>
+                        <th>
                             <b>Address</b>
-                        </td>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
@@ -282,13 +260,19 @@ const Browser = (props) => {
                             <Form.Label>Symbol</Form.Label>
                             <Form.Control value={newBoardSymbol} onChange={(e) => { setNewBoardSymbol(e.target.value) }} type="text" />
                         </Form.Group>
-                        <Button onClick={onBoardCreateClick}>
-                            Create
-                        </Button>
+
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-
+                    <Button variant="secondary" onClick={handleCreateClose}>
+                        Cancel
+                    </Button>
+                    <Button hidden={isLoading} onClick={onBoardCreateClick}>
+                        Create
+                    </Button>
+                    <Spinner hidden={!isLoading} animation="border" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </Spinner>
                 </Modal.Footer>
             </Modal>
 

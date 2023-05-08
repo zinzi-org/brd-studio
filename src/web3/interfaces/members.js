@@ -29,6 +29,9 @@ function MembersInterface(memberNFTAddress){
         },
         getBoardForToken: async (tokenId) => {
             return await memberBoardNFT.methods.getBoardForToken(tokenId).call();
+        },
+        balanceOf: async (address) => {
+            return await memberBoardNFT.methods.balanceOf(address).call();
         }
     };
 

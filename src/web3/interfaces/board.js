@@ -39,7 +39,7 @@ function BoardInterface(address) {
             return await contractInstance.methods.castVote(propId, vote).send({ from: window.ethereum.selectedAddress });
         },
         propose: async (description, pType, address, amount, votingDelay) => {
-            return await contractInstance.methods.castVote(description, pType, address).send({ from: window.ethereum.selectedAddress });
+            return await contractInstance.methods.propose(description, pType, address, amount, votingDelay).send({ from: window.ethereum.selectedAddress });
         },
         isGovernor: async (address) => {
             return await contractInstance.methods.isGovernor(address).call();
@@ -71,29 +71,38 @@ function BoardInterface(address) {
         getVotes: async () => {
             return await contractInstance.methods.getVotes().call();
         },
-        setProposalFee: async (newFee) => {
-            await contractInstance.methods.setProposalFee(newFee).send({ from: window.ethereum.selectedAddress });
+        proposalVotes: async (propId) => {
+            return await contractInstance.methods.proposalVotes(propId).call();
+        },
+        proposalDetail: async (propId) => {
+            return await contractInstance.methods.proposalDetail(propId).call();
+        },
+        proposeMember: async (description, address) => {
+            return await contractInstance.methods.proposeMember(description, address).send({ from: window.ethereum.selectedAddress });
+        },
+        addMemberWithProposal: async (propId) => {
+            return await contractInstance.methods.addMemberWithProposal(propId).send({ from: window.ethereum.selectedAddress });
+        },
+        setApplicantFee: async (propId) => {
+            return await contractInstance.methods.setApplicantFee(propId).send({ from: window.ethereum.selectedAddress });
+        },
+        distributeFunds: async (propId) => {
+            return await contractInstance.methods.distributeFunds(propId).send({ from: window.ethereum.selectedAddress });
         },
         getProposals: async () => {
-            try {
-                return await contractInstance.current.getPastEvents('Proposal', {
-                    fromBlock: 0,
-                    toBlock: 'latest'
-                });
-            } catch (e) {
-                console.log(e);
-                return [];
-            }
-
+            return await contractInstance.getPastEvents('Proposal', {
+                fromBlock: 0,
+                toBlock: 'latest'
+            });
         },
         getMemberApprovals: async () => {
-            return await contractInstance.current.getPastEvents('ApproveMember', {
+            return await contractInstance.getPastEvents('ApproveMember', {
                 fromBlock: 0,
                 toBlock: 'latest'
             });
         },
         getGovernorApprovals: async () => {
-            return await contractInstance.current.getPastEvents('AddGovernor', {
+            return await contractInstance.getPastEvents('AddGovernor', {
                 fromBlock: 0,
                 toBlock: 'latest'
             });
