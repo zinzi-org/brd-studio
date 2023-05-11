@@ -75,10 +75,30 @@ function BoardInterface(address) {
             return await contractInstance.methods.proposalVotes(propId).call();
         },
         proposalDetail: async (propId) => {
-            return await contractInstance.methods.proposalDetail(propId).call();
+            var proposalDetail = await contractInstance.methods.proposalDetail(propId).call();
+
+            var detail = {
+                pType: proposalDetail[0],
+                voteStart: proposalDetail[1],
+                voteEnd: proposalDetail[2],
+                executed: proposalDetail[3] == 0 ? false : true,
+                cancelled: proposalDetail[4] == 0 ? false : true,
+                who: proposalDetail[5],
+                amount: proposalDetail[6],
+                againstVotes: proposalDetail[7],
+                forVotes: proposalDetail[8],
+                abstainVotes: proposalDetail[9],
+                hasVoted: proposalDetail[10] == 0 ? false : true
+            };
+
+            return detail;
+
         },
-        proposeMember: async (description, address) => {
-            return await contractInstance.methods.proposeMember(description, address).send({ from: window.ethereum.selectedAddress });
+        getApplicantFee: async () => {
+            return await contractInstance.methods.getApplicantFee().call();
+        },
+        proposeMember: async (description, address, feeAmount) => {
+            return await contractInstance.methods.proposeMember(description, address).send({ from: window.ethereum.selectedAddress, value: feeAmount });
         },
         addMemberWithProposal: async (propId) => {
             return await contractInstance.methods.addMemberWithProposal(propId).send({ from: window.ethereum.selectedAddress });
@@ -91,6 +111,12 @@ function BoardInterface(address) {
         },
         getProposals: async () => {
             return await contractInstance.getPastEvents('Proposal', {
+                fromBlock: 0,
+                toBlock: 'latest'
+            });
+        },
+        getMemberProposals: async () => {
+            return await contractInstance.getPastEvents('MemberProposal', {
                 fromBlock: 0,
                 toBlock: 'latest'
             });

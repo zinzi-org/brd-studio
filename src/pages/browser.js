@@ -46,6 +46,7 @@ const Browser = (props) => {
             let membersAddress = await boardFactoryInterface.current.getMembersAddress();
             membersInterface.current = new MembersInterface(membersAddress);
             if (provider.selectedAddress) {
+                
                 usersBoards = await populateCurrentUserBoardList();
             }
             await popualateAllBoards(usersBoards);

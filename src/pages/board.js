@@ -52,12 +52,15 @@ const Board = (props) => {
     const [showNewApplicantModal, setShowNewApplicantModal] = useState(false);
     const [newApplicantDescription, setNewApplicantDescription] = useState("");
 
+    const [newApplicants, setNewApplicants] = useState([]);
+
     const [showError, setShowError] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
 
     const [boardDetail, setBoardDetail] = useState({ propsItems: [] });
 
     const [isMember, setIsMember] = useState(false);
+    const [isGovernor, setIsGovernor] = useState(false);
 
 
     useEffect(() => {
@@ -69,48 +72,112 @@ const Board = (props) => {
         if (provider && window.ethereum) {
             var board = await getBoardDetail(address);
             setBoardDetail(board);
-
+            getApplicants();
+            if (window.ethereum.selectedAddress) {
+                let boardFactoryInterface = new BoardFactoryInterface();
+                let membersAddress = await boardFactoryInterface.getMembersAddress();
+                let memberInterface = new MembersInterface(membersAddress);
+                let memberBalance = await memberInterface.balanceOf(window.ethereum.selectedAddress);
+                let isMember = parseInt(memberBalance) > 0;
+                let boardInterface = new BoardInterface(address);
+                let isGovernor = await boardInterface.isGovernor(window.ethereum.selectedAddress);
+                setIsGovernor(isGovernor);
+                setIsMember(isMember);
+            }
         }
     }
 
-    const getBoardDetail = async (boardAddress) => {
-        let boardInterface = new BoardInterface(boardAddress);
+    const getApplicants = async () => {
+        let boardInterface = new BoardInterface(address);
+        let applicants = await boardInterface.getMemberProposals();
         let boardFactoryInterface = new BoardFactoryInterface();
         let membersAddress = await boardFactoryInterface.getMembersAddress();
         let memberInterface = new MembersInterface(membersAddress);
-        let memberBalance = await memberInterface.balanceOf(window.ethereum.selectedAddress);
-        let isMember = parseInt(memberBalance) > 0;
-        setIsMember(isMember);
+
+        var applicantItems = [];
+
+        for (var i = 0; i < applicants.length; i++) {
+            var applicant = applicants[i];
+
+            var proposalId = applicant.returnValues[1];
+            var applicantAddress = applicant.returnValues[0];
+            var applicantDescription = applicant.returnValues[2];
+
+            var applicantBalance = await memberInterface.balanceOf(applicantAddress);
+            if (parseInt(applicantBalance) == 0) {
+                var proposalState = await boardInterface.state(proposalId);
+                if (proposalState == 0 || proposalState == 1 || proposalState == 5) {
+                    var detail = await boardInterface.proposalDetail(proposalId);
+                    var abstainVotes = detail.abstainVotes;
+                    var againstVotes = detail.againstVotes;
+                    var forVotes = detail.forVotes;
+                    var hasVoted = detail.hasVoted;
+                    var propSnapShot = detail.voteStart;
+                    var propDeadline = detail.voteEnd;
+                    var propState = await boardInterface.state(proposalId);
+                    const web3 = new Web3(window.ethereum);
+                    const currentBlockNumber = await web3.eth.getBlockNumber();
+                    var secondsUntilStart = (propSnapShot - currentBlockNumber) * 12;
+                    var secondsUntilEnd = (propDeadline - currentBlockNumber) * 12;
+                    let hideVotebutton = hasVoted || !isMember;
+                    applicantItems.push({
+                        address: applicantAddress,
+                        description: applicantDescription,
+                        proposalId,
+                        abstainVotes,
+                        againstVotes,
+                        forVotes,
+                        hasVoted,
+                        hideVotebutton,
+                        secondsUntilStart,
+                        secondsUntilEnd,
+                        propState
+                    });
+                }
+            }
+        }
+
+        setNewApplicants(applicantItems);
+    };
+
+    const getBoardDetail = async (boardAddress) => {
+        let boardInterface = new BoardInterface(boardAddress);
         let boardName = await boardInterface.name();
         let totalMembers = await boardInterface.getTotalMembers();
-        let isGovernor = await boardInterface.isGovernor(window.ethereum.selectedAddress);
         var memberVotesAddress = await boardInterface.getMemberVotesAddress();
-        let memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
-        var votingPower = await memberVotesInterface.getVotes(window.ethereum.selectedAddress);
+        let isGovernor = false;
+        var votingPower = 0;
+        if (window.ethereum.selectedAddress) {
+            let memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
+            isGovernor = await boardInterface.isGovernor(window.ethereum.selectedAddress);
+            votingPower = await memberVotesInterface.getVotes(window.ethereum.selectedAddress);
+        }
+
         let proposals = await boardInterface.getProposals();
 
         var propsItems = [];
 
         const web3 = new Web3(window.ethereum);
         const currentBlockNumber = await web3.eth.getBlockNumber();
-        console.log(proposals);
+
         for (var x = 0; x < proposals.length; x++) {
             var proposal = proposals[x];
             var proposalId = proposal.returnValues[0];
             var description = proposal.returnValues[1];
             var pType = proposal.returnValues[2];
-            var proposalVotes = await boardInterface.proposalVotes(proposalId);
-            var abstainVotes = proposalVotes.abstainVotes;
-            var againstVotes = proposalVotes.againstVotes;
-            var forVotes = proposalVotes.forVotes;
+            var detail = await boardInterface.proposalDetail(proposalId);
+
+            var abstainVotes = detail.abstainVotes;
+            var againstVotes = detail.againstVotes;
+            var forVotes = detail.forVotes;
             var propState = await boardInterface.state(proposalId);
-            var propSnapShot = await boardInterface.proposalSnapshot(proposalId);
-            var propDeadline = await boardInterface.proposalDeadline(proposalId);
+            var propSnapShot = detail.voteStart;
+            var propDeadline = detail.voteEnd;
 
             var secondsUntilStart = (propSnapShot - currentBlockNumber) * 12;
             var secondsUntilEnd = (propDeadline - currentBlockNumber) * 12;
 
-            var hasVoted = await boardInterface.hasVoted(proposalId, window.ethereum.selectedAddress);
+            var hasVoted = detail.hasVoted;
             let hideVotebutton = hasVoted || !isMember;
 
             propsItems.push({
@@ -125,7 +192,8 @@ const Board = (props) => {
                 propDeadline,
                 secondsUntilStart,
                 secondsUntilEnd,
-                hideVotebutton
+                hideVotebutton,
+                isActive: propState == 0 || propState == 1 || propState == 5
             });
 
         }
@@ -147,25 +215,33 @@ const Board = (props) => {
         setNewProposalType(0);
     };
 
-    // 0 TEXT_BASED_PROPOSAL,
-    // 1 ADD_GOVERNOR,
-    // 2 REMOVE_GOVERNOR,
-    // 3 REMOVE_MEMBER,
-    // 4 SET_PROPOSAL_DURATION,
-    // 5 SET_DELEGATION_THRESHOLD,
-    // 6 APPLICANT
-    // 7 APPLICANT_FEE,
-    // 8 DISTRIBUE_FUNDS
     const onProposalChange = (e) => {
+        // 0 TEXT_BASED_PROPOSAL,
+        //Always show text box
         setNewProposalType(e.target.value);
+        // 1 ADD_GOVERNOR,
+        // 2 REMOVE_GOVERNOR,
+        // 3 REMOVE_MEMBER,
         setShowNewProposalAddress(e.target.value == 1 || e.target.value == 2 || e.target.value == 3);
+        // 5 SET_DELEGATION_THRESHOLD,
         setShowNewDelegationPercentage(e.target.value == 5);
+        // 4 SET_PROPOSAL_DURATION,
         setShowNewProposalDuration(e.target.value == 4);
+        // 7 APPLICANT_FEE,
         setShowApplicantFee(e.target.value == 7);
+        // 8 DISTRIBUE_FUNDS
         setShowDistributeAmount(e.target.value == 8);
     };
 
-    const onApplicantCreateClick = () => {
+    // 6 APPLICANT
+    const onApplicantCreateClick = async () => {
+        setIsLoading(true);
+        let boardInterface = new BoardInterface(address);
+        var fee = await boardInterface.getApplicantFee();
+        await boardInterface.proposeMember(newApplicantDescription, window.ethereum.selectedAddress, fee);
+        await getApplicants();
+        handleApplicantClose();
+        setIsLoading(false);
 
     };
 
@@ -227,14 +303,6 @@ const Board = (props) => {
     };
 
 
-    // Pending = 0
-    // Active = 1
-    // Canceled = 2
-    // Defeated = 3
-    // Succeeded = 4
-    // Queued = 5
-    // Expired = 6
-    // Executed = 7
     const stateTranslation = (pState) => {
         switch (parseInt(pState)) {
             case 0:
@@ -287,6 +355,145 @@ const Board = (props) => {
         return dateTime.toLocaleString();
     }
 
+    // TEXT_BASED_PROPOSAL 0
+    // ADD_GOVERNOR 1
+    // REMOVE_GOVERNOR 2
+    // REMOVE_MEMBER 3
+    // SET_PROPOSAL_DURATION 4
+    // SET_DELEGATION_THRESHOLD 5
+    // APPLICANT 6
+    // APPLICANT_FEE 7
+    // DISTRIBUE_FUNDS 8
+    const executeProposal = async (propType, propId) => {
+        let boardInterface = new BoardInterface(boardDetail.boardAddress);
+
+        switch (propType) {
+            case 1:
+                await boardInterface.addGovernor(propId);
+                break;
+            case 2:
+                await boardInterface.removeGovernor(propId);
+                break;
+            case 3:
+                await boardInterface.removeMember(propId);
+                break;
+            case 4:
+                await boardInterface.setProposalDuration(propId);
+                break;
+            case 5:
+                await boardInterface.setDelegationThreshold(propId);
+                break;
+            case 6:
+                await boardInterface.addMemberWithProposal(propId);
+                break;
+            case 7:
+                await boardInterface.setApplicantFee(propId);
+                break;
+            case 8:
+                await boardInterface.distributeFunds(propId);
+                break;
+        }
+
+        let board = await getBoardDetail(boardDetail.boardAddress);
+        setBoardDetail(board);
+    };
+
+
+    const newApplicantList = newApplicants.map((applicant, index) => {
+        return (
+            <div key={index}>
+                <Row>
+                    <Col className="item-center">
+                        <b>Description</b>
+                    </Col>
+                </Row>
+                <Row>
+                    <Col className="item-center">
+                        {applicant.description}
+                    </Col>
+                </Row>
+                <br />
+                <Row className="board-row-item">
+                    <Col xs={3} className="item-center">
+                        Applicant Address
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        For Votes Count
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        Against Vote Count
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        Abstain Vote Count
+                    </Col>
+                </Row>
+                <br />
+                <Row>
+                    <Col xs={3} className="item-center">
+                        {applicant.address}
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        {applicant.forVotes}
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        {applicant.againstVotes}
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        {applicant.abstainVotes}
+                    </Col>
+                </Row>
+                <br />
+                <Row>
+                    <Col xs={3} className="item-center">
+                        <Button variant="success" disabled={!isGovernor} onClick={(e) => { executeProposal(6, applicant.proposalId) }}>Execute</Button>
+                    </Col>
+                    <Col hidden={applicant.hideVotebutton} xs={3} className="item-center">
+                        <Button variant="warning" onClick={() => { onPropVoteClick(applicant.proposalId, 1) }}>For</Button>
+                    </Col>
+                    <Col hidden={applicant.hideVotebutton} xs={3} className="item-center">
+                        <Button variant="danger" onClick={() => { onPropVoteClick(applicant.proposalId, 0) }}>Against</Button>
+                    </Col>
+                    <Col hidden={applicant.hideVotebutton} xs={3} className="item-center">
+                        <Button variant="primary" onClick={() => { onPropVoteClick(applicant.proposalId, 2) }}>Abstain</Button>
+                    </Col>
+                </Row>
+                <br />
+                <br />
+                <Row className="board-row-item">
+                    <Col xs={3} className="item-center">
+                        Type
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        State
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        Start
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        End
+                    </Col>
+                </Row>
+                <br />
+                <Row>
+                    <Col xs={3} className="item-center">
+                        New Applicant
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        {stateTranslation(applicant.propState)}
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        {getFutureDateTime(applicant.secondsUntilStart)}
+                    </Col>
+                    <Col xs={3} className="item-center">
+                        {getFutureDateTime(applicant.secondsUntilEnd)}
+                    </Col>
+                </Row>
+                <br />
+                <hr />
+            </div>
+        )
+    });
+
     const proposalMapping = boardDetail.propsItems.map((prop, index) => {
         return (
             <div key={index}>
@@ -332,7 +539,9 @@ const Board = (props) => {
                 </Row>
                 <br />
                 <Row className="board-row-item">
+                    <Col xs={3} className="item-center">
 
+                    </Col>
                     <Col xs={3} className="item-center">
                         For Votes Count
                     </Col>
@@ -346,6 +555,9 @@ const Board = (props) => {
                 <br />
                 <Row>
                     <Col xs={3} className="item-center">
+
+                    </Col>
+                    <Col xs={3} className="item-center">
                         {prop.forVotes}
                     </Col>
                     <Col xs={3} className="item-center">
@@ -358,7 +570,7 @@ const Board = (props) => {
                 <br />
                 <Row hidden={prop.hideVotebutton}>
                     <Col xs={3} className="item-center">
-
+                        <Button variant="success" disabled={prop.isActive} onClick={(e) => { executeProposal(prop.pType, prop.proposalId) }} >Execute</Button>
                     </Col>
                     <Col xs={3} className="item-center">
                         <Button variant="warning" onClick={() => { onPropVoteClick(prop.proposalId, 1) }}>For</Button>
@@ -385,6 +597,14 @@ const Board = (props) => {
                 <Col className="header-text">
                     {boardDetail.boardName}
                 </Col>
+            </Row>
+
+            <br />
+
+            <Row hidden={isMember || !window.ethereum.selectedAddress}>
+                <Button variant="success" onClick={handleApplicantShow}>
+                    Submit Application
+                </Button>
             </Row>
 
             <br />
@@ -416,13 +636,25 @@ const Board = (props) => {
                     {boardDetail.totalMembers}
                 </Col>
                 <Col xs={3} className="item-center">
-                    {boardDetail.isGovernor ? "Governor" : "Member"}
+                    {isMember ? boardDetail.isGovernor ? "Governor" : "Member" : "Not a Member"}
                 </Col>
                 <Col xs={3} className="item-center">
                     {boardDetail.votingPower}
                 </Col>
             </Row>
 
+            <br />
+            <br />
+            <br />
+
+            <Row>
+                <Col className="item-center">
+                    <h3>New Member Applicants</h3>
+                </Col>
+            </Row>
+
+            <hr />
+            {newApplicantList}
             <br />
             <br />
             <br />
@@ -442,19 +674,23 @@ const Board = (props) => {
 
             <Modal size="lg" show={showNewApplicantModal} onHide={handleApplicantClose}>
                 <Modal.Header>
-                    New Applicant
+                    <b>Application</b>
                 </Modal.Header>
                 <Modal.Body>
                     <Form>
                         <Form.Group className="mb-3" >
+                            <Form.Label>Please Describe Yourself</Form.Label>
                             <Form.Control as="textarea" value={newApplicantDescription} onChange={(e) => { setNewApplicantDescription(e.target.value) }} />
                         </Form.Group>
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button onClick={onApplicantCreateClick}>
-                        Create
+                    <Button hidden={isLoading} onClick={onApplicantCreateClick}>
+                        Submit
                     </Button>
+                    <Spinner hidden={!isLoading} animation="border" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </Spinner>
                 </Modal.Footer>
             </Modal>
 
@@ -484,7 +720,8 @@ const Board = (props) => {
                                 <option value={3}>Remove Member</option>
                                 <option value={4}>Set Proposal Duration</option>
                                 <option value={5}>Set Delegation Threshold</option>
-
+                                <option value={7}>Set Application Fee</option>
+                                <option value={8}>Distribute Funds</option>
                             </Form.Select>
                         </Form.Group>
                         <Form.Group className="mb-3" hidden={!showNewProposalAddress}>
