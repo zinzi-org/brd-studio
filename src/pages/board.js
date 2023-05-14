@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useParams } from 'react-router-dom';
-import detectEthereumProvider from '@metamask/detect-provider';
+
 import Web3 from 'web3';
 
+import { useEthereum } from '../ethContext';
 
 //--bootstrap
 import Button from 'react-bootstrap/Button';
@@ -20,8 +21,10 @@ import BoardInterface from "../web3/interfaces/board";
 import MembersInterface from "../web3/interfaces/members";
 import MemberVotesInterface from "../web3/interfaces/memberVotes";
 
-const Board = (props) => {
-    const { address } = useParams();
+const Board = () => {
+    const { boardAddress } = useParams();
+
+    const { address, balance, isConnected, displayAddress, jazzIconInt } = useEthereum();
 
     const [isLoading, setIsLoading] = useState(false);
 
@@ -49,6 +52,13 @@ const Board = (props) => {
     const handleApplicantClose = () => setShowNewApplicantModal(false);
     const handleApplicantShow = () => setShowNewApplicantModal(true);
 
+    const [showDelegateModal, setShowDelegateModal] = useState(false);
+
+    const handleCloseDelegateModal = () => setShowDelegateModal(false);
+    const handleShowDelegateModal = () => setShowDelegateModal(true);
+
+    const [delegateToAddress, setDelegateToAddress] = useState("");
+
     const [showNewApplicantModal, setShowNewApplicantModal] = useState(false);
     const [newApplicantDescription, setNewApplicantDescription] = useState("");
 
@@ -61,34 +71,34 @@ const Board = (props) => {
 
     const [isMember, setIsMember] = useState(false);
     const [isGovernor, setIsGovernor] = useState(false);
+    const [hasDelegation, setHasDelgation] = useState(false);
 
+    const onConnect = useCallback(async () => {
+        let isMemberLocal = false;
+        if (window.ethereum.selectedAddress) {
+            let boardFactoryInterface = new BoardFactoryInterface();
+            let membersAddress = await boardFactoryInterface.getMembersAddress();
+            let memberInterface = new MembersInterface(membersAddress);
+            let memberBalance = await memberInterface.balanceOf(window.ethereum.selectedAddress);
+            isMemberLocal = parseInt(memberBalance) > 0;
+            let boardInterface = new BoardInterface(boardAddress);
+            let isGovernor = await boardInterface.isGovernor(window.ethereum.selectedAddress);
+            let hasDelegation = await boardInterface.memberHasDelegation(window.ethereum.selectedAddress);
+            setIsGovernor(isGovernor);
+            setHasDelgation(hasDelegation);
+            setIsMember(isMemberLocal);
+        }
+        await getAndSetBoardDetail(isMemberLocal);
+        await getAndSetApplicants();
+    }, [isConnected]);
 
     useEffect(() => {
         onConnect();
-    }, []);
+    }, [onConnect]);
 
-    async function onConnect() {
-        const provider = await detectEthereumProvider();
-        if (provider && window.ethereum) {
-            var board = await getBoardDetail(address);
-            setBoardDetail(board);
-            getApplicants();
-            if (window.ethereum.selectedAddress) {
-                let boardFactoryInterface = new BoardFactoryInterface();
-                let membersAddress = await boardFactoryInterface.getMembersAddress();
-                let memberInterface = new MembersInterface(membersAddress);
-                let memberBalance = await memberInterface.balanceOf(window.ethereum.selectedAddress);
-                let isMember = parseInt(memberBalance) > 0;
-                let boardInterface = new BoardInterface(address);
-                let isGovernor = await boardInterface.isGovernor(window.ethereum.selectedAddress);
-                setIsGovernor(isGovernor);
-                setIsMember(isMember);
-            }
-        }
-    }
 
-    const getApplicants = async () => {
-        let boardInterface = new BoardInterface(address);
+    const getAndSetApplicants = async () => {
+        let boardInterface = new BoardInterface(boardAddress);
         let applicants = await boardInterface.getMemberProposals();
         let boardFactoryInterface = new BoardFactoryInterface();
         let membersAddress = await boardFactoryInterface.getMembersAddress();
@@ -104,9 +114,9 @@ const Board = (props) => {
             var applicantDescription = applicant.returnValues[2];
 
             var applicantBalance = await memberInterface.balanceOf(applicantAddress);
-            if (parseInt(applicantBalance) == 0) {
-                var proposalState = await boardInterface.state(proposalId);
-                if (proposalState == 0 || proposalState == 1 || proposalState == 5) {
+            if (parseInt(applicantBalance) === 0) {
+                var proposalState = parseInt(await boardInterface.state(proposalId));
+                if (proposalState === 0 || proposalState === 1 || proposalState === 5) {
                     var detail = await boardInterface.proposalDetail(proposalId);
                     var abstainVotes = detail.abstainVotes;
                     var againstVotes = detail.againstVotes;
@@ -140,17 +150,20 @@ const Board = (props) => {
         setNewApplicants(applicantItems);
     };
 
-    const getBoardDetail = async (boardAddress) => {
+    const getAndSetBoardDetail = async (isMember) => {
         let boardInterface = new BoardInterface(boardAddress);
         let boardName = await boardInterface.name();
         let totalMembers = await boardInterface.getTotalMembers();
         var memberVotesAddress = await boardInterface.getMemberVotesAddress();
         let isGovernor = false;
         var votingPower = 0;
+        let hasDelegated = false;
         if (window.ethereum.selectedAddress) {
             let memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
+            let delegatedAddress = await memberVotesInterface.delegateSafeCheck(window.ethereum.selectedAddress);
+            hasDelegated = delegatedAddress.toLowerCase() !== window.ethereum.selectedAddress.toLowerCase();
             isGovernor = await boardInterface.isGovernor(window.ethereum.selectedAddress);
-            votingPower = await memberVotesInterface.getVotes(window.ethereum.selectedAddress);
+            votingPower = parseInt(await memberVotesInterface.getVotes(window.ethereum.selectedAddress));
         }
 
         let proposals = await boardInterface.getProposals();
@@ -170,7 +183,7 @@ const Board = (props) => {
             var abstainVotes = detail.abstainVotes;
             var againstVotes = detail.againstVotes;
             var forVotes = detail.forVotes;
-            var propState = await boardInterface.state(proposalId);
+            var propState = parseInt(await boardInterface.state(proposalId));
             var propSnapShot = detail.voteStart;
             var propDeadline = detail.voteEnd;
 
@@ -178,8 +191,8 @@ const Board = (props) => {
             var secondsUntilEnd = (propDeadline - currentBlockNumber) * 12;
 
             var hasVoted = detail.hasVoted;
-            let hideVotebutton = hasVoted || !isMember;
-
+            let hideVotebutton = !isMember && !isGovernor;
+            let noVotingPower = votingPower === 0 || hasVoted;
             propsItems.push({
                 proposalId,
                 description,
@@ -193,20 +206,21 @@ const Board = (props) => {
                 secondsUntilStart,
                 secondsUntilEnd,
                 hideVotebutton,
-                isActive: propState == 0 || propState == 1 || propState == 5
+                noVotingPower,
+                isActive: propState === 0 || propState === 1 || propState === 5
             });
 
         }
 
-
-        return {
+        setBoardDetail({
             boardName: boardName,
             totalMembers: totalMembers,
             isGovernor: isGovernor,
+            hasDelegated: hasDelegated,
             votingPower: votingPower,
             boardAddress: boardAddress,
             propsItems: propsItems
-        };
+        });
     }
 
     const onProposalCreateClick = async () => {
@@ -216,30 +230,32 @@ const Board = (props) => {
     };
 
     const onProposalChange = (e) => {
+        var value = parseInt(e.target.value);
+
         // 0 TEXT_BASED_PROPOSAL,
         //Always show text box
-        setNewProposalType(e.target.value);
+        setNewProposalType(value);
         // 1 ADD_GOVERNOR,
         // 2 REMOVE_GOVERNOR,
         // 3 REMOVE_MEMBER,
-        setShowNewProposalAddress(e.target.value == 1 || e.target.value == 2 || e.target.value == 3);
+        setShowNewProposalAddress(value === 1 || value === 2 || value === 3);
         // 5 SET_DELEGATION_THRESHOLD,
-        setShowNewDelegationPercentage(e.target.value == 5);
+        setShowNewDelegationPercentage(value === 5);
         // 4 SET_PROPOSAL_DURATION,
-        setShowNewProposalDuration(e.target.value == 4);
+        setShowNewProposalDuration(value === 4);
         // 7 APPLICANT_FEE,
-        setShowApplicantFee(e.target.value == 7);
+        setShowApplicantFee(value === 7);
         // 8 DISTRIBUE_FUNDS
-        setShowDistributeAmount(e.target.value == 8);
+        setShowDistributeAmount(value === 8);
     };
 
     // 6 APPLICANT
     const onApplicantCreateClick = async () => {
         setIsLoading(true);
-        let boardInterface = new BoardInterface(address);
+        let boardInterface = new BoardInterface(boardAddress);
         var fee = await boardInterface.getApplicantFee();
         await boardInterface.proposeMember(newApplicantDescription, window.ethereum.selectedAddress, fee);
-        await getApplicants();
+        await getAndSetApplicants();
         handleApplicantClose();
         setIsLoading(false);
 
@@ -249,17 +265,16 @@ const Board = (props) => {
     // For = 1
     // Abstain = 2
     const onPropVoteClick = async (propId, support) => {
-        let boardInterface = new BoardInterface(boardDetail.boardAddress);
+        let boardInterface = new BoardInterface(boardAddress);
         await boardInterface.castVote(propId, support);
-        var board = await getBoardDetail(address);
-        setBoardDetail(board);
+        await getAndSetBoardDetail(isMember);
     };
 
     const onProposalCreateSaveClick = async () => {
 
-        let boardInterface = new BoardInterface(boardDetail.boardAddress);
+        let boardInterface = new BoardInterface(boardAddress);
 
-        if (newProposalDescription.length == 0) {
+        if (newProposalDescription.length === 0) {
             setErrorMessage("Description is required");
             setShowError(true);
             return;
@@ -271,7 +286,7 @@ const Board = (props) => {
             case "1":
             case "2":
             case "3":
-                if (newProposalAddress.length == 0) {
+                if (newProposalAddress.length === 0) {
                     setErrorMessage("Address is required");
                     setShowError(true);
                     return;
@@ -279,7 +294,7 @@ const Board = (props) => {
                 break;
             case "4":
                 amount = newProposalDuration;
-                if (newProposalDuration.length == 0 && isNaN(newProposalDuration)) {
+                if (newProposalDuration.length === 0 && isNaN(newProposalDuration)) {
                     setErrorMessage("Duration is required and must be a number");
                     setShowError(true);
                     return;
@@ -287,18 +302,20 @@ const Board = (props) => {
                 break;
             case "5":
                 amount = newDelegationPercentage;
-                if (newDelegationPercentage.length == 0 && isNaN(newDelegationPercentage)) {
+                if (newDelegationPercentage.length === 0 && isNaN(newDelegationPercentage)) {
                     setErrorMessage("Delegation Percentage is required and must be a number");
                     setShowError(true);
                     return;
                 }
                 break;
+            default:
+                console.log("Unsupported proposal Type", newProposalType);
+                break;
         }
 
         setIsLoading(true);
         await boardInterface.propose(newProposalDescription, newProposalType, newProposalAddress, amount, newProposalDelay);
-        let board = await getBoardDetail(boardDetail.boardAddress);
-        setBoardDetail(board);
+        await getAndSetBoardDetail(isMember);
         handleProposalClose();
     };
 
@@ -321,6 +338,8 @@ const Board = (props) => {
                 return "Expired";
             case 7:
                 return "Executed";
+            default:
+                return "Unknown";
         }
     };
 
@@ -341,6 +360,9 @@ const Board = (props) => {
                 return "Set Delegation Threshold";
             case 6:
                 return "Applicant";
+            default:
+                return "Unknown";
+
         }
     }
 
@@ -365,7 +387,7 @@ const Board = (props) => {
     // APPLICANT_FEE 7
     // DISTRIBUE_FUNDS 8
     const executeProposal = async (propType, propId) => {
-        let boardInterface = new BoardInterface(boardDetail.boardAddress);
+        let boardInterface = new BoardInterface(boardAddress);
 
         switch (propType) {
             case 1:
@@ -392,11 +414,34 @@ const Board = (props) => {
             case 8:
                 await boardInterface.distributeFunds(propId);
                 break;
+            default:
+                console.log("Unsupported proposal Type", propType);
+                break;
         }
 
-        let board = await getBoardDetail(boardDetail.boardAddress);
-        setBoardDetail(board);
+        await getAndSetApplicants();
+        await getAndSetBoardDetail(isMember);
     };
+
+    const onVoteDelegateClick = async () => {
+        isLoading(true);
+        let boardInterface = new BoardInterface(boardAddress);
+        var memberVotesAddress = await boardInterface.getMemberVotesAddress();
+        var memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
+        await memberVotesInterface.delegate(delegateToAddress, window.ethereum.selectedAddress, distriubtionAddress);
+        await getAndSetBoardDetail(isMember);
+        handleCloseDelegateModal(isMember);
+        isLoading(false);
+    };
+
+    const onReclaimDelegateClick = async () => {
+        let boardInterface = new BoardInterface(boardAddress);
+        var memberVotesAddress = await boardInterface.getMemberVotesAddress();
+        var memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
+        await memberVotesInterface.reclaimVote();
+        await getAndSetBoardDetail(isMember);
+    };
+
 
 
     const newApplicantList = newApplicants.map((applicant, index) => {
@@ -573,13 +618,13 @@ const Board = (props) => {
                         <Button variant="success" disabled={prop.isActive} onClick={(e) => { executeProposal(prop.pType, prop.proposalId) }} >Execute</Button>
                     </Col>
                     <Col xs={3} className="item-center">
-                        <Button variant="warning" onClick={() => { onPropVoteClick(prop.proposalId, 1) }}>For</Button>
+                        <Button disabled={prop.noVotingPower} variant="warning" onClick={() => { onPropVoteClick(prop.proposalId, 1) }}>For</Button>
                     </Col>
                     <Col xs={3} className="item-center">
-                        <Button variant="danger" onClick={() => { onPropVoteClick(prop.proposalId, 0) }}>Against</Button>
+                        <Button disabled={prop.noVotingPower} variant="danger" onClick={() => { onPropVoteClick(prop.proposalId, 0) }}>Against</Button>
                     </Col>
                     <Col xs={3} className="item-center">
-                        <Button variant="primary" onClick={() => { onPropVoteClick(prop.proposalId, 2) }}>Abstain</Button>
+                        <Button disabled={prop.noVotingPower} variant="primary" onClick={() => { onPropVoteClick(prop.proposalId, 2) }}>Abstain</Button>
                     </Col>
                 </Row>
                 <br />
@@ -593,6 +638,7 @@ const Board = (props) => {
     return (
         <div>
 
+
             <Row className="header-wrapper" >
                 <Col className="header-text">
                     {boardDetail.boardName}
@@ -601,7 +647,7 @@ const Board = (props) => {
 
             <br />
 
-            <Row hidden={isMember || !window.ethereum.selectedAddress}>
+            <Row hidden={isMember || !isConnected}>
                 <Button variant="success" onClick={handleApplicantShow}>
                     Submit Application
                 </Button>
@@ -639,6 +685,9 @@ const Board = (props) => {
                     {isMember ? boardDetail.isGovernor ? "Governor" : "Member" : "Not a Member"}
                 </Col>
                 <Col xs={3} className="item-center">
+                    <Button hidden={!boardDetail.hasDelegated} variant="danger" onClick={onReclaimDelegateClick}>Reclaim Vote</Button>
+                    <Button hidden={boardDetail.hasDelegated || !isMember} variant="warning" onClick={handleShowDelegateModal}>Delegate</Button>
+                    <br />
                     {boardDetail.votingPower}
                 </Col>
             </Row>
@@ -664,13 +713,38 @@ const Board = (props) => {
                     <h3>Proposals</h3>
                 </Col>
                 <Col>
-                    <Button hidden={!isMember} onClick={onProposalCreateClick} variant="success">Create</Button>
+                    <Button hidden={!isMember} onClick={onProposalCreateClick} variant="success" disabled={!isGovernor || hasDelegation}>Create</Button>
                 </Col>
             </Row>
 
             <hr />
 
             {proposalMapping}
+
+            <Modal show={showDelegateModal} onHide={handleCloseDelegateModal}>
+                <Modal.Header>
+                    <b>Delegate</b>
+                </Modal.Header>
+                <Modal.Body>
+                    <Form>
+                        <Form.Group className="mb-3" >
+                            <Form.Label>Delegate To Address</Form.Label>
+                            <Form.Control value={delegateToAddress} onChange={(e) => { setDelegateToAddress(e.target.value) }} type="text" />
+                        </Form.Group>
+                    </Form>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Spinner hidden={!isLoading} animation="border" role="status">
+                        <span className="visually-hidden">Loading...</span>
+                    </Spinner>
+                    <Button hidden={isLoading} variant="warning" onClick={handleCloseDelegateModal}>
+                        Cancel
+                    </Button>
+                    <Button hidden={isLoading} variant="success" onClick={onVoteDelegateClick}>
+                        Submit
+                    </Button>
+                </Modal.Footer>
+            </Modal>
 
             <Modal size="lg" show={showNewApplicantModal} onHide={handleApplicantClose}>
                 <Modal.Header>
@@ -734,7 +808,7 @@ const Board = (props) => {
                         </Form.Group>
                         <Form.Group className="mb-3" hidden={!showNewDelegationPercentage}>
                             <Form.Label>Proposed Proposal Delegation Threshold (0-100%)</Form.Label>
-                            <Form.Control value={newProposalDuration} onChange={(e) => { setNewProposalDuration(e.target.value) }} type="text" />
+                            <Form.Control value={newProposalDuration} onChange={(e) => { setNewDelegationPercentage(e.target.value) }} type="text" />
                         </Form.Group>
                         <Form.Group className="mb-3" hidden={!showApplicantFee}>
                             <Form.Label>Applicant Fee Amount</Form.Label>
@@ -755,7 +829,7 @@ const Board = (props) => {
                     </Form>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button variant="warning" onClick={handleProposalClose}>
+                    <Button hidden={isLoading} variant="warning" onClick={handleProposalClose}>
                         Cancel
                     </Button>
                     <Button hidden={isLoading} onClick={onProposalCreateSaveClick}>

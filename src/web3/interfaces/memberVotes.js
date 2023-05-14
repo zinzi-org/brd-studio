@@ -44,20 +44,12 @@ function MemberVotesInterface(address) {
                 .getPastTotalSupply(blockNumber)
                 .call();
         },
-        delegate: async function (delegatee, from, privateKey) {
-            const data = memberVoteContract.methods.delegate(delegatee).encodeABI();
-            const gas = await memberVoteContract.methods.delegate(delegatee).estimateGas({ from });
-            const nonce = await web3.eth.getTransactionCount(from);
-            const tx = {
-                from: from,
-                to: address,
-                gas: gas,
-                nonce: nonce,
-                data: data,
-            };
-            const signedTx = await web3.eth.accounts.signTransaction(tx, privateKey);
-            return await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+        delegate: async function (delegatee) {
+            await memberVoteContract.methods.delegate(delegatee).send({ from: window.ethereum.selectedAddress });
         },
+        reclaimVote: async function () {
+            await memberVoteContract.methods.reclaimVote().send({ from: window.ethereum.selectedAddress });
+        }
     };
 }
 

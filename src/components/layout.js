@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
-import Web3 from 'web3';
-import detectEthereumProvider from '@metamask/detect-provider';
-import { Routes, Route, Outlet, Link } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from "react";
+import { useEthereum } from '../ethContext';
+import { Outlet, Link } from "react-router-dom";
+
 
 //--bootstrap
 import Navbar from 'react-bootstrap/Navbar';
@@ -13,55 +13,14 @@ import Jazzicon from 'react-jazzicon';
 //--bootstrap
 
 
-const Studio = (props) => {
-
-    const [isConnected, setIsConnected] = useState(false);
-    const [displayAddress, setDisplayAddress] = useState("");
-    const [jazzIconInt, setJazzIconInt] = useState(0);
-    const [balance, setBalance] = useState(0);
-
-    useEffect(() => {
-        onConnect();
-        return () => {
-            if (window.ethereum) {
-                window.ethereum.removeListener('accountsChanged', onConnect);
-                window.ethereum.removeListener('connect', onConnect);
-            }
-
-        };
-    }, []);
-
-    async function onConnect() {
-        const provider = await detectEthereumProvider();
-        if (provider && window.ethereum) {
-            if (provider.selectedAddress) {
-                setDisplayAddress(getShortAccountAddress(provider.selectedAddress));
-                setIsConnected(true);
-                let web3 = new Web3(window.ethereum);
-                const balance = await web3.eth.getBalance(window.ethereum.selectedAddress);
-                setBalance(parseFloat(web3.utils.fromWei(balance)).toFixed(3));
-                setJazzIconInt(parseInt(window.ethereum.selectedAddress.slice(2, 10), 16));
-            }
-            window.ethereum.on('accountsChanged', onConnect);
-            window.ethereum.on('connect', onConnect);
-        } 
-    }
-
-    function getShortAccountAddress(address) {
-        if (address) {
-            var firstFour = address.slice(0, 5);
-            var lastFour = address.slice(-4);
-            return firstFour + "..." + lastFour;
-        }
-    }
+const Layout = () => {
 
 
+    const { address, balance, isConnected, displayAddress, jazzIconInt } = useEthereum();
 
     const connectClick = () => {
         window.ethereum.request({ method: 'eth_requestAccounts' });
     };
-
-
 
     return (
         <div>
@@ -69,7 +28,7 @@ const Studio = (props) => {
                 <Navbar variant="dark" expand="lg">
                     <Container>
                         <Nav defaultActiveKey="#explorer">
-                            <Navbar.Brand>Board Studio</Navbar.Brand>
+                            <Link to={"/"}><Navbar.Brand>Board Studio</Navbar.Brand></Link>
                         </Nav>
                         <Nav>
                             <Nav.Link>
@@ -98,4 +57,4 @@ const Studio = (props) => {
 }
 
 
-export default Studio;
+export default Layout;

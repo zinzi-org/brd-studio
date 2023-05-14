@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import detectEthereumProvider from '@metamask/detect-provider';
 import { Link } from "react-router-dom";
 //--bootstrap
@@ -34,11 +34,7 @@ const Browser = (props) => {
 
     const [isLoading, setIsLoading] = useState(false);
 
-    useEffect(() => {
-        onConnect();
-    }, []);
-
-    async function onConnect() {
+    const onConnect = useCallback(async () => {
         const provider = await detectEthereumProvider();
         if (provider && window.ethereum) {
             var usersBoards = [];
@@ -50,8 +46,23 @@ const Browser = (props) => {
                 usersBoards = await populateCurrentUserBoardList();
             }
             await popualateAllBoards(usersBoards);
+            window.ethereum.on('accountsChanged', onConnect);
+            window.ethereum.on('connect', onConnect);
         }
-    }
+    }, []);
+
+    useEffect(() => {
+        onConnect();
+        return () => {
+            if (window.ethereum) {
+                window.ethereum.removeListener('accountsChanged', onConnect);
+                window.ethereum.removeListener('connect', onConnect);
+            }
+
+        };
+    }, [onConnect]);
+
+
 
     async function populateCurrentUserBoardList() {
         var boards = await membersInterface.current.getBoards(window.ethereum.selectedAddress);
@@ -94,7 +105,13 @@ const Browser = (props) => {
             var isMember = false;
             var isGovernor = false;
             if (window.ethereum.selectedAddress && usersBoards.length > 0) {
-                isMember = usersBoards.filter(x => x.boardAddress === address).length > 0;
+
+                for (let i = 0; i < usersBoards.length; i++) {
+                    if (usersBoards[i].boardAddress.toLowerCase() === address.toLowerCase()) {
+                      isMember = true;
+                      break;
+                    }
+                }
                 isGovernor = await board.isGovernor(window.ethereum.selectedAddress);
             }
             result.push({ boardAddress: address, name: boardName, symbol: boardSymbol, totalMembers, isMember, isGovernor });
@@ -126,10 +143,6 @@ const Browser = (props) => {
             return firstFour + "..." + lastFour;
         }
     }
-
-    const onJoinBoardClick = async (boardAddress) => {
-
-    };
 
     const getCurrentUserBoards = currentUsersBoards.map((model, index) => {
         return (

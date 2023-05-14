@@ -33,7 +33,7 @@ function BoardInterface(address) {
             return await contractInstance.methods.getTotalMembers().call();
         },
         memberHasDelegation: async (address) => {
-            return await contractInstance.methods.memberHasDelegation().call();
+            return await contractInstance.methods.memberHasDelegation(address).call();
         },
         castVote: async (propId, vote) => {
             return await contractInstance.methods.castVote(propId, vote).send({ from: window.ethereum.selectedAddress });
@@ -81,14 +81,14 @@ function BoardInterface(address) {
                 pType: proposalDetail[0],
                 voteStart: proposalDetail[1],
                 voteEnd: proposalDetail[2],
-                executed: proposalDetail[3] == 0 ? false : true,
-                cancelled: proposalDetail[4] == 0 ? false : true,
+                executed: parseInt(proposalDetail[3]) === 0 ? false : true,
+                cancelled: parseInt(proposalDetail[4]) === 0 ? false : true,
                 who: proposalDetail[5],
                 amount: proposalDetail[6],
                 againstVotes: proposalDetail[7],
                 forVotes: proposalDetail[8],
                 abstainVotes: proposalDetail[9],
-                hasVoted: proposalDetail[10] == 0 ? false : true
+                hasVoted: parseInt(proposalDetail[10]) === 0 ? false : true
             };
 
             return detail;
