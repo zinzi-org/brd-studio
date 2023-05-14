@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useEthereum } from '../ethContext';
 import { Outlet, Link } from "react-router-dom";
 
@@ -16,11 +16,29 @@ import Jazzicon from 'react-jazzicon';
 const Layout = () => {
 
 
-    const { address, balance, isConnected, displayAddress, jazzIconInt } = useEthereum();
+    const { selectedAddress, balance, isConnected } = useEthereum();
+
+    const [jazzIconInt, setJazzIconInt] = useState(0);
+    const [displayAddress, setDisplayAddress] = useState("");
 
     const connectClick = () => {
         window.ethereum.request({ method: 'eth_requestAccounts' });
     };
+
+    useEffect(() => {
+        if (selectedAddress) {
+            setDisplayAddress(getShortAccountAddress(selectedAddress));
+            setJazzIconInt(parseInt(selectedAddress.slice(2, 10), 16));
+        }
+    }, [selectedAddress]);
+
+    function getShortAccountAddress(address) {
+        if (address) {
+            var firstFour = address.slice(0, 5);
+            var lastFour = address.slice(-4);
+            return firstFour + "..." + lastFour;
+        }
+    }
 
     return (
         <div>
@@ -28,7 +46,8 @@ const Layout = () => {
                 <Navbar variant="dark" expand="lg">
                     <Container>
                         <Nav defaultActiveKey="#explorer">
-                            <Link to={"/"}><Navbar.Brand>Board Studio</Navbar.Brand></Link>
+                            <Link to={"/"}><Navbar.Brand>Boards</Navbar.Brand></Link>
+                            <Link to={"/projects"}><Navbar.Brand>Projects</Navbar.Brand></Link>
                         </Nav>
                         <Nav>
                             <Nav.Link>

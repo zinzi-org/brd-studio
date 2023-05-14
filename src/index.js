@@ -4,8 +4,12 @@ import ReactDOM from 'react-dom/client';
 import { Routes, Route, BrowserRouter } from "react-router-dom";
 
 import Layout from './components/layout';
-import Browser from './pages/browser';
+
+import Boards from './pages/boards';
 import Board from './pages/board';
+
+import Projects from './pages/projects';
+import Project from './pages/project';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import "./styling/index.css";
@@ -19,8 +23,10 @@ root.render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Layout />} >
-            <Route path="/" element={<Browser />} />
+            <Route path="/" element={<Boards />} />
             <Route path="board/:boardAddress" element={<Board />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="project/:projectAddress" element={<Project />} />
           </Route>
         </Routes>
       </BrowserRouter>

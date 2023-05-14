@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import detectEthereumProvider from '@metamask/detect-provider';
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+
+import { useEthereum } from '../ethContext';
+
 //--bootstrap
 import Button from 'react-bootstrap/Button';
 import Row from 'react-bootstrap/Row';
@@ -16,7 +18,9 @@ import BoardInterface from "../web3/interfaces/board";
 import MembersInterface from "../web3/interfaces/members";
 import MemberVotesInterface from "../web3/interfaces/memberVotes";
 
-const Browser = (props) => {
+const Boards = () => {
+
+    const { selectedAddress, balance, isConnected, isProvider } = useEthereum();
 
     const [showCreateBoardModal, setShowCreateBoardModal] = useState(false);
 
@@ -29,56 +33,26 @@ const Browser = (props) => {
     const [currentUsersBoards, setCurrentUsersBoards] = useState([]);
     const [allBoards, setAllBoards] = useState([]);
 
-    const boardFactoryInterface = useRef(null);
-    const membersInterface = useRef(null);
-
     const [isLoading, setIsLoading] = useState(false);
 
-    const onConnect = useCallback(async () => {
-        const provider = await detectEthereumProvider();
-        if (provider && window.ethereum) {
-            var usersBoards = [];
-            boardFactoryInterface.current = new BoardFactoryInterface();
-            let membersAddress = await boardFactoryInterface.current.getMembersAddress();
-            membersInterface.current = new MembersInterface(membersAddress);
-            if (provider.selectedAddress) {
-                
-                usersBoards = await populateCurrentUserBoardList();
-            }
-            await popualateAllBoards(usersBoards);
-            window.ethereum.on('accountsChanged', onConnect);
-            window.ethereum.on('connect', onConnect);
-        }
-    }, []);
-
-    useEffect(() => {
-        onConnect();
-        return () => {
-            if (window.ethereum) {
-                window.ethereum.removeListener('accountsChanged', onConnect);
-                window.ethereum.removeListener('connect', onConnect);
-            }
-
-        };
-    }, [onConnect]);
-
-
-
-    async function populateCurrentUserBoardList() {
-        var boards = await membersInterface.current.getBoards(window.ethereum.selectedAddress);
+    const populateCurrentUserBoardList = useCallback(async () => {
+        let boardFactoryInterface = new BoardFactoryInterface();
+        let membersAddress = await boardFactoryInterface.getMembersAddress();
+        let membersInterface = new MembersInterface(membersAddress);
+        var boards = await membersInterface.getBoards(selectedAddress);
         var result = [];
         for (var i = 0; i < boards.length; i++) {
             var boardToken = boards[i];
-            var boardAddress = await membersInterface.current.getBoardForToken(boardToken);
+            var boardAddress = await membersInterface.getBoardForToken(boardToken);
             var board = new BoardInterface(boardAddress);
             var boardName = await board.name();
             var boardSymbol = await board.symbol();
             var totalMembers = await board.getTotalMembers();
-            var isGovernor = await board.isGovernor(window.ethereum.selectedAddress);
+            var isGovernor = await board.isGovernor(selectedAddress);
             var memberVotesAddress = await board.getMemberVotesAddress();
             let memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
-            var votingPower = await memberVotesInterface.getVotes(window.ethereum.selectedAddress);
-          
+            var votingPower = await memberVotesInterface.getVotes(selectedAddress);
+
             result.push({
                 boardAddress,
                 boardName,
@@ -90,11 +64,11 @@ const Browser = (props) => {
             });
         }
         setCurrentUsersBoards(result);
-        return result;
-    }
+    }, [selectedAddress]);
 
-    async function popualateAllBoards(usersBoards) {
-        var boards = await boardFactoryInterface.current.getAllBoards();
+    const popualateAllBoards = useCallback(async () => {
+        let boardFactoryInterface = new BoardFactoryInterface();
+        var boards = await boardFactoryInterface.getAllBoards();
         var result = [];
         for (var i = 0; i < boards.length; i++) {
             var address = boards[i].returnValues[0];
@@ -104,21 +78,31 @@ const Browser = (props) => {
             var totalMembers = await board.getTotalMembers();
             var isMember = false;
             var isGovernor = false;
-            if (window.ethereum.selectedAddress && usersBoards.length > 0) {
-
-                for (let i = 0; i < usersBoards.length; i++) {
-                    if (usersBoards[i].boardAddress.toLowerCase() === address.toLowerCase()) {
-                      isMember = true;
-                      break;
-                    }
-                }
-                isGovernor = await board.isGovernor(window.ethereum.selectedAddress);
-            }
             result.push({ boardAddress: address, name: boardName, symbol: boardSymbol, totalMembers, isMember, isGovernor });
         }
 
         setAllBoards(result);
-    }
+    }, []);
+
+    const onProvider = useCallback(async () => {
+        if (isProvider) {
+            await popualateAllBoards();
+        }
+    }, [isProvider,popualateAllBoards]);
+
+    const onConnect = useCallback(async () => {
+        if (isConnected) {
+            await populateCurrentUserBoardList();
+        }
+    }, [isConnected, populateCurrentUserBoardList]);
+
+    useEffect(() => {
+        onConnect();
+    }, [onConnect]);
+
+    useEffect(() => {
+        onProvider();
+    }, [onProvider]);
 
 
     //open/close modal
@@ -129,9 +113,10 @@ const Browser = (props) => {
     //on board create 
     const onBoardCreateClick = async () => {
         setIsLoading(true);
-        await boardFactoryInterface.current.create(newBoardName, newBoardSymbol);
+        let boardFactoryInterface = new BoardFactoryInterface();
+        await boardFactoryInterface.create(newBoardName, newBoardSymbol);
         await populateCurrentUserBoardList();
-        await onConnect();
+        await popualateAllBoards();
         handleCreateClose();
         setIsLoading(false);
     };
@@ -169,7 +154,7 @@ const Browser = (props) => {
     const getAllBoards = allBoards.map((model, index) => {
         return (
 
-            <tr key={ImageBitmapRenderingContext}>
+            <tr key={index}>
                 <td>
                     <b><Link to={"board/" + model.boardAddress}>{model.name}</Link></b>
                 </td>
@@ -297,4 +282,4 @@ const Browser = (props) => {
 }
 
 
-export default Browser;
+export default Boards;

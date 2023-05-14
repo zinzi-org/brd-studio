@@ -24,7 +24,7 @@ import MemberVotesInterface from "../web3/interfaces/memberVotes";
 const Board = () => {
     const { boardAddress } = useParams();
 
-    const { address, balance, isConnected, displayAddress, jazzIconInt } = useEthereum();
+    const { selectedAddress, balance, isConnected, isProvider, provider } = useEthereum();
 
     const [isLoading, setIsLoading] = useState(false);
 
@@ -73,31 +73,7 @@ const Board = () => {
     const [isGovernor, setIsGovernor] = useState(false);
     const [hasDelegation, setHasDelgation] = useState(false);
 
-    const onConnect = useCallback(async () => {
-        let isMemberLocal = false;
-        if (window.ethereum.selectedAddress) {
-            let boardFactoryInterface = new BoardFactoryInterface();
-            let membersAddress = await boardFactoryInterface.getMembersAddress();
-            let memberInterface = new MembersInterface(membersAddress);
-            let memberBalance = await memberInterface.balanceOf(window.ethereum.selectedAddress);
-            isMemberLocal = parseInt(memberBalance) > 0;
-            let boardInterface = new BoardInterface(boardAddress);
-            let isGovernor = await boardInterface.isGovernor(window.ethereum.selectedAddress);
-            let hasDelegation = await boardInterface.memberHasDelegation(window.ethereum.selectedAddress);
-            setIsGovernor(isGovernor);
-            setHasDelgation(hasDelegation);
-            setIsMember(isMemberLocal);
-        }
-        await getAndSetBoardDetail(isMemberLocal);
-        await getAndSetApplicants();
-    }, [isConnected]);
-
-    useEffect(() => {
-        onConnect();
-    }, [onConnect]);
-
-
-    const getAndSetApplicants = async () => {
+    const getAndSetApplicants =  useCallback(async () => {
         let boardInterface = new BoardInterface(boardAddress);
         let applicants = await boardInterface.getMemberProposals();
         let boardFactoryInterface = new BoardFactoryInterface();
@@ -125,7 +101,7 @@ const Board = () => {
                     var propSnapShot = detail.voteStart;
                     var propDeadline = detail.voteEnd;
                     var propState = await boardInterface.state(proposalId);
-                    const web3 = new Web3(window.ethereum);
+                    const web3 = new Web3(provider);
                     const currentBlockNumber = await web3.eth.getBlockNumber();
                     var secondsUntilStart = (propSnapShot - currentBlockNumber) * 12;
                     var secondsUntilEnd = (propDeadline - currentBlockNumber) * 12;
@@ -148,9 +124,9 @@ const Board = () => {
         }
 
         setNewApplicants(applicantItems);
-    };
+    }, [boardAddress, isMember, provider]);
 
-    const getAndSetBoardDetail = async (isMember) => {
+    const getAndSetBoardDetail = useCallback(async (isMember) => {
         let boardInterface = new BoardInterface(boardAddress);
         let boardName = await boardInterface.name();
         let totalMembers = await boardInterface.getTotalMembers();
@@ -158,19 +134,19 @@ const Board = () => {
         let isGovernor = false;
         var votingPower = 0;
         let hasDelegated = false;
-        if (window.ethereum.selectedAddress) {
+        if (selectedAddress) {
             let memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
-            let delegatedAddress = await memberVotesInterface.delegateSafeCheck(window.ethereum.selectedAddress);
-            hasDelegated = delegatedAddress.toLowerCase() !== window.ethereum.selectedAddress.toLowerCase();
-            isGovernor = await boardInterface.isGovernor(window.ethereum.selectedAddress);
-            votingPower = parseInt(await memberVotesInterface.getVotes(window.ethereum.selectedAddress));
+            let delegatedAddress = await memberVotesInterface.delegateSafeCheck(selectedAddress);
+            hasDelegated = delegatedAddress.toLowerCase() !== selectedAddress.toLowerCase();
+            isGovernor = await boardInterface.isGovernor(selectedAddress);
+            votingPower = parseInt(await memberVotesInterface.getVotes(selectedAddress));
         }
 
         let proposals = await boardInterface.getProposals();
 
         var propsItems = [];
 
-        const web3 = new Web3(window.ethereum);
+        const web3 = new Web3(provider);
         const currentBlockNumber = await web3.eth.getBlockNumber();
 
         for (var x = 0; x < proposals.length; x++) {
@@ -221,7 +197,37 @@ const Board = () => {
             boardAddress: boardAddress,
             propsItems: propsItems
         });
-    }
+    }, [boardAddress, selectedAddress, provider]);
+
+    const onConnect = useCallback(async () => {
+        let isMemberLocal = false;
+        if (isConnected) {
+            let boardFactoryInterface = new BoardFactoryInterface();
+            let membersAddress = await boardFactoryInterface.getMembersAddress();
+            let memberInterface = new MembersInterface(membersAddress);
+            let memberBalance = await memberInterface.balanceOf(selectedAddress);
+            isMemberLocal = parseInt(memberBalance) > 0;
+            let boardInterface = new BoardInterface(boardAddress);
+            let isGovernor = await boardInterface.isGovernor(selectedAddress);
+            let hasDelegation = await boardInterface.memberHasDelegation(selectedAddress);
+            setIsGovernor(isGovernor);
+            setHasDelgation(hasDelegation);
+            setIsMember(isMemberLocal);
+        }
+        await getAndSetBoardDetail(isMemberLocal);
+        await getAndSetApplicants();
+    }, [isConnected, selectedAddress, getAndSetBoardDetail, getAndSetApplicants, boardAddress]);
+
+
+
+    useEffect(() => {
+        if(isProvider){
+            onConnect();
+        }
+    }, [isProvider, onConnect]);
+
+
+
 
     const onProposalCreateClick = async () => {
         handleProposalShow();
@@ -254,7 +260,7 @@ const Board = () => {
         setIsLoading(true);
         let boardInterface = new BoardInterface(boardAddress);
         var fee = await boardInterface.getApplicantFee();
-        await boardInterface.proposeMember(newApplicantDescription, window.ethereum.selectedAddress, fee);
+        await boardInterface.proposeMember(newApplicantDescription, selectedAddress, fee);
         await getAndSetApplicants();
         handleApplicantClose();
         setIsLoading(false);
@@ -428,7 +434,7 @@ const Board = () => {
         let boardInterface = new BoardInterface(boardAddress);
         var memberVotesAddress = await boardInterface.getMemberVotesAddress();
         var memberVotesInterface = new MemberVotesInterface(memberVotesAddress);
-        await memberVotesInterface.delegate(delegateToAddress, window.ethereum.selectedAddress, distriubtionAddress);
+        await memberVotesInterface.delegate(delegateToAddress, selectedAddress, distriubtionAddress);
         await getAndSetBoardDetail(isMember);
         handleCloseDelegateModal(isMember);
         isLoading(false);
