@@ -31,6 +31,4 @@ function BoardFactoryInterface(){
 }
 
 
-
-
 export default BoardFactoryInterface;
