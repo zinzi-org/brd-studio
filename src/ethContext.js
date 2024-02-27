@@ -7,7 +7,7 @@ const EthereumContext = createContext();
 
 // Create a provider component for this context
 export function EthereumProvider({ children }) {
-    
+
     const [selectedAddress, setSelectedAddress] = useState(null);
     const [balance, setBalance] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -19,19 +19,27 @@ export function EthereumProvider({ children }) {
         if (provider && window.ethereum) {
             setIsProvider(true);
             setProvider(provider);
-            if (provider.selectedAddress) {
-                setSelectedAddress(provider.selectedAddress);
+
+            const accounts = await provider.request({
+                method: 'eth_accounts'
+            });
+
+            if (accounts.length > 0) {
+                var account = accounts[0];
+                setSelectedAddress(account);
                 setIsConnected(true);
-                let web3 = new Web3(window.ethereum);
-                const balance = await web3.eth.getBalance(window.ethereum.selectedAddress);
-                setBalance(parseFloat(web3.utils.fromWei(balance)).toFixed(3));
+                 let web3 = new Web3(window.ethereum);
+                 const balance = await web3.eth.getBalance(account);
+                 var ether = web3.utils.fromWei(balance, 'ether');
+                 setBalance(parseFloat(ether).toFixed(3));
             }
+
         }
     }, []);
 
     useEffect(() => {
         onConnect();
-        if(window.ethereum){
+        if (window.ethereum) {
             window.ethereum.on('accountsChanged', onConnect);
             window.ethereum.on('connect', onConnect);
         }
